@@ -8,6 +8,9 @@
         <span class="badge {{ proyecto.estado_global }}">{{ proyecto.estado_global }}</span>
         <span class="mono">{{ proyecto.carpeta_raiz }}</span>
         <span>Creado: {{ proyecto.fecha_creacion[:10] }}</span>
+        {% if proyecto.comuna %}
+        <span>{{ proyecto.comuna }}{% if proyecto.zona_sismica %} (Z{{ proyecto.zona_sismica }}){% endif %}</span>
+        {% endif %}
     </div>
     {% if proyecto.notas %}
     <p class="notas">{{ proyecto.notas }}</p>

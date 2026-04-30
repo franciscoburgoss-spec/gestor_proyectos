@@ -8,8 +8,20 @@ from datetime import datetime
 from zoneinfo import ZoneInfo
 import os
 import zipfile
+import json
 
 TZ_CHILE = ZoneInfo("America/Santiago")
+
+# Cargar comunas con zona sísmica
+COMUNAS_PATH = BASE_DIR / "static" / "comunas.json"
+if COMUNAS_PATH.exists():
+    with open(COMUNAS_PATH, "r", encoding="utf-8") as f:
+        COMUNAS_DATA = json.load(f)
+else:
+    COMUNAS_DATA = {"comunas": []}
+
+COMUNAS = sorted([c["nombre"] for c in COMUNAS_DATA.get("comunas", [])])
+ZONAS = {c["nombre"]: c["zona"] for c in COMUNAS_DATA.get("comunas", [])}
 
 def now_chile():
     """Devuelve fecha/hora actual en Chile como string YYYY-MM-DD HH:MM:SS."""
@@ -83,6 +95,16 @@ def migrate_db():
         db.execute("ALTER TABLE proyectos ADD COLUMN motivo_cierre TEXT")
         db.commit()
 
+    # Verificar si comuna existe en proyectos
+    if "comuna" not in col_names:
+        db.execute("ALTER TABLE proyectos ADD COLUMN comuna TEXT")
+        db.commit()
+
+    # Verificar si zona_sismica existe en proyectos
+    if "zona_sismica" not in col_names:
+        db.execute("ALTER TABLE proyectos ADD COLUMN zona_sismica INTEGER")
+        db.commit()
+
     db.close()
 
 # ──────────────────────────────────────────────────────────────
@@ -142,7 +164,7 @@ def index():
             s.fecha_entrada ASC
     """).fetchall()
 
-    return render_template("index.html", proyectos=proyectos, cerrados=cerrados, pendientes=pendientes, hoy=now_chile()[:10], filtro=filtro)
+    return render_template("index.html", proyectos=proyectos, cerrados=cerrados, pendientes=pendientes, hoy=now_chile()[:10], filtro=filtro, comunas=COMUNAS)
 
 @app.route("/proyecto/crear", methods=["POST"])
 def crear_proyecto():
@@ -150,19 +172,28 @@ def crear_proyecto():
     acronimo = request.form["acronimo"].strip().upper()
     nombre = request.form["nombre"].strip()
     carpeta = request.form["carpeta_raiz"].strip()
+    comuna = request.form.get("comuna", "").strip()
     notas = request.form.get("notas", "").strip()
+
+    zona = ZONAS.get(comuna, None) if comuna else None
 
     try:
         db.execute(
-            "INSERT INTO proyectos (acronimo, nombre, carpeta_raiz, notas, fecha_creacion) VALUES (?,?,?,?,?)",
-            (acronimo, nombre, carpeta, notas, now_chile())
+            "INSERT INTO proyectos (acronimo, nombre, carpeta_raiz, comuna, zona_sismica, notas, fecha_creacion) VALUES (?,?,?,?,?,?,?)",
+            (acronimo, nombre, carpeta, comuna, zona, notas, now_chile())
         )
         db.commit()
         # Registrar en historial
         proyecto = db.execute("SELECT id FROM proyectos WHERE acronimo = ?", (acronimo,)).fetchone()
+        desc = f"Proyecto {acronimo} creado"
+        if comuna:
+            desc += f" (comuna: {comuna}"
+            if zona:
+                desc += f", Z{zona}"
+            desc += ")"
         db.execute(
             "INSERT INTO historial (proyecto_id, accion, descripcion, fecha) VALUES (?,?,?,?)",
-            (proyecto["id"], "creacion", f"Proyecto {acronimo} creado", now_chile())
+            (proyecto["id"], "creacion", desc, now_chile())
         )
         db.commit()
         flash(f"Proyecto {acronimo} creado correctamente", "ok")
@@ -184,7 +215,11 @@ def editar_proyecto(proyecto_id):
     if request.method == "POST":
         nombre = request.form["nombre"].strip()
         carpeta = request.form["carpeta_raiz"].strip()
+        comuna = request.form.get("comuna", "").strip()
         notas = request.form.get("notas", "").strip()
+
+        nueva_zona = ZONAS.get(comuna, None) if comuna else None
+        zona_anterior = proyecto.get("zona_sismica")
 
         if not nombre or not carpeta:
             flash("Nombre y carpeta raíz son obligatorios", "err")
@@ -195,12 +230,16 @@ def editar_proyecto(proyecto_id):
             cambios.append(f"nombre: '{proyecto['nombre']}' → '{nombre}'")
         if carpeta != proyecto["carpeta_raiz"]:
             cambios.append(f"carpeta: '{proyecto['carpeta_raiz']}' → '{carpeta}'")
+        if comuna != (proyecto["comuna"] or ""):
+            cambios.append(f"comuna: '{proyecto['comuna'] or '-'}' → '{comuna or '-'}'")
+            if nueva_zona != zona_anterior:
+                cambios.append(f"zona sísmica: Z{zona_anterior or '-'} → Z{nueva_zona or '-'}'")
         if notas != (proyecto["notas"] or ""):
-            cambios.append(f"notas actualizadas")
+            cambios.append("notas actualizadas")
 
         db.execute(
-            "UPDATE proyectos SET nombre = ?, carpeta_raiz = ?, notas = ? WHERE id = ?",
-            (nombre, carpeta, notas, proyecto_id)
+            "UPDATE proyectos SET nombre = ?, carpeta_raiz = ?, comuna = ?, zona_sismica = ?, notas = ? WHERE id = ?",
+            (nombre, carpeta, comuna, nueva_zona, notas, proyecto_id)
         )
 
         if cambios:
@@ -214,7 +253,7 @@ def editar_proyecto(proyecto_id):
         flash("Proyecto actualizado", "ok")
         return redirect(url_for("ver_proyecto", proyecto_id=proyecto_id))
 
-    return render_template("editar_proyecto.html", proyecto=proyecto)
+    return render_template("editar_proyecto.html", proyecto=proyecto, comunas=COMUNAS)
 
 
 @app.route("/proyecto/<int:proyecto_id>")
@@ -668,10 +707,22 @@ def completar_solicitud(sol_id):
 # GENERADOR DE CORREOS TIPO
 # ──────────────────────────────────────────────────────────────
 
+def _proyecto_con_comuna(proyecto):
+    """Devuelve la referencia al proyecto incluyendo comuna si existe."""
+    comuna = proyecto.get("comuna")
+    zona = proyecto.get("zona_sismica")
+    ref = f"{proyecto['acronimo']}"
+    if comuna:
+        ref += f" de la comuna de {comuna}"
+        if zona:
+            ref += f" (Z{zona})"
+    return ref
+
+
 def generar_email_chk(proyecto, sol, revisiones, docs_pendientes):
     """Email para Checklist: lista documento por documento con comentarios."""
     lines = ["Estimado Coordinador,", ""]
-    lines.append(f"He realizado el Checklist del proyecto {proyecto['acronimo']} y el resultado arrojó lo siguiente:")
+    lines.append(f"He realizado el Checklist del proyecto {_proyecto_con_comuna(proyecto)} y el resultado arrojó lo siguiente:")
     lines.append("")
 
     # Separar por resultado
@@ -719,7 +770,7 @@ def generar_email_chk(proyecto, sol, revisiones, docs_pendientes):
 def generar_email_r01_r02(proyecto, sol, resumen):
     """Email para R01/R02: resumen numérico + referencia a acta adjunta."""
     lines = ["Estimado Coordinador,", ""]
-    lines.append(f"He realizado la {sol['tipo']} del proyecto {proyecto['acronimo']}. El resultado arrojó lo siguiente:")
+    lines.append(f"He realizado la {sol['tipo']} del proyecto {_proyecto_con_comuna(proyecto)}. El resultado arrojó lo siguiente:")
     lines.append("")
     lines.append(f"- {resumen.get('aprobado', 0)} documento(s) aprobado(s)")
     lines.append(f"- {resumen.get('observado', 0)} documento(s) observado(s)")
@@ -740,7 +791,7 @@ def generar_email_r01_r02(proyecto, sol, resumen):
 def generar_email_rex(proyecto, sol, revisiones, motivo_rechazo=""):
     """Email para REX: lista de rechazados + comentarios + motivo de rechazo del proyecto."""
     lines = ["Estimado Coordinador,", ""]
-    lines.append(f"He realizado la Revisión Excepcional del proyecto {proyecto['acronimo']}. El resultado arrojó lo siguiente:")
+    lines.append(f"He realizado la Revisión Excepcional del proyecto {_proyecto_con_comuna(proyecto)}. El resultado arrojó lo siguiente:")
     lines.append("")
 
     rechazados = [r for r in revisiones if r["resultado"] == "rechazado"]

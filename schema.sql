@@ -25,6 +25,8 @@ CREATE TABLE IF NOT EXISTS proyectos (
     nombre TEXT NOT NULL,
     estado_global TEXT DEFAULT 'activo',
     carpeta_raiz TEXT NOT NULL,
+    comuna TEXT,
+    zona_sismica INTEGER,
     fecha_creacion TIMESTAMP DEFAULT (datetime('now','localtime')),
     fecha_cierre TIMESTAMP,
     motivo_cierre TEXT,

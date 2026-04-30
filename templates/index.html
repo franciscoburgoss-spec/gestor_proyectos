@@ -70,6 +70,12 @@
         <input type="text" name="acronimo" placeholder="Acrónimo (5 chars max)" maxlength="5" required>
         <input type="text" name="nombre" placeholder="Nombre del proyecto" required>
         <input type="text" name="carpeta_raiz" placeholder="Ruta raíz (ej: /Users/fran/Proyectos/LDV)" required>
+        <select name="comuna" style="min-width:180px;">
+            <option value="">Sin comuna</option>
+            {% for c in comunas %}
+                <option value="{{ c }}">{{ c }}</option>
+            {% endfor %}
+        </select>
         <input type="text" name="notas" placeholder="Notas (opcional)">
         <button type="submit">Crear</button>
     </form>
@@ -100,6 +106,7 @@
             <tr>
                 <th>Acrónimo</th>
                 <th>Nombre</th>
+                <th>Comuna</th>
                 <th>Solicitud activa</th>
                 <th>Carpeta</th>
                 <th>Creado</th>
@@ -111,6 +118,13 @@
             <tr>
                 <td><strong>{{ p.acronimo }}</strong></td>
                 <td>{{ p.nombre }}</td>
+                <td>
+                    {% if p.comuna %}
+                        {{ p.comuna }}{% if p.zona_sismica %} <span class="small">(Z{{ p.zona_sismica }})</span>{% endif %}
+                    {% else %}
+                        <span class="small">—</span>
+                    {% endif %}
+                </td>
                 <td>
                     {% if p.sol_tipo %}
                         {% if p.sol_tipo == 'REX' %}
