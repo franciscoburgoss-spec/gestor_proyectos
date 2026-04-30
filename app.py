@@ -156,7 +156,10 @@ def index():
              AND d.id NOT IN (
                  SELECT documento_id FROM revisiones_aplicadas WHERE solicitud_id = s.id
              )
-            ) as docs_pendientes
+            ) as docs_pendientes,
+            (SELECT COUNT(*) FROM documentos d
+             WHERE d.proyecto_id = s.proyecto_id AND d.activo = 1
+            ) as total_docs
         FROM solicitudes s
         JOIN proyectos p ON s.proyecto_id = p.id
         WHERE s.estado != 'completada'
