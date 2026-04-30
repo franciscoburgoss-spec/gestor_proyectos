@@ -4,7 +4,7 @@ from flask import Flask, render_template, request, redirect, url_for, flash, g, 
 import io
 from fpdf import FPDF
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 import os
 import zipfile
@@ -15,6 +15,19 @@ TZ_CHILE = ZoneInfo("America/Santiago")
 def now_chile():
     """Devuelve fecha/hora actual en Chile como string YYYY-MM-DD HH:MM:SS."""
     return datetime.now(TZ_CHILE).strftime("%Y-%m-%d %H:%M:%S")
+
+
+def dias_habiles(fecha_inicio, fecha_fin):
+    """Cuenta días hábiles entre dos fechas (inclusive), excluyendo sábados y domingos."""
+    if fecha_fin < fecha_inicio:
+        return -1
+    dias = 0
+    current = fecha_inicio
+    while current <= fecha_fin:
+        if current.weekday() < 5:
+            dias += 1
+        current += timedelta(days=1)
+    return dias
 
 
 def ascii_safe(text):
@@ -149,7 +162,7 @@ def index():
     ).fetchall()
 
     # Solicitudes pendientes de revisión, ordenadas por urgencia (fecha límite)
-    pendientes = db.execute("""
+    pendientes_raw = db.execute("""
         SELECT s.*, p.acronimo, p.nombre as proyecto_nombre, p.id as proyecto_id,
             (SELECT COUNT(*) FROM documentos d
              WHERE d.proyecto_id = s.proyecto_id AND d.activo = 1 AND d.estado != 'aprobado'
@@ -168,6 +181,32 @@ def index():
             s.fecha_limite ASC,
             s.fecha_entrada ASC
     """).fetchall()
+
+    hoy_date = datetime.strptime(now_chile()[:10], "%Y-%m-%d").date()
+    pendientes = []
+    for s in pendientes_raw:
+        row = dict(s)
+        if row['fecha_limite']:
+            limite = datetime.strptime(row['fecha_limite'], "%Y-%m-%d").date()
+            dias = dias_habiles(hoy_date, limite)
+            row['dias_habiles'] = dias
+            if dias < 0:
+                row['urgencia_color'] = '#757575'
+                row['urgencia_texto'] = 'Vencido'
+            elif dias <= 3:
+                row['urgencia_color'] = '#c62828'
+                row['urgencia_texto'] = f'{dias} días hábiles'
+            elif dias <= 7:
+                row['urgencia_color'] = '#ef6c00'
+                row['urgencia_texto'] = f'{dias} días hábiles'
+            else:
+                row['urgencia_color'] = '#2e7d32'
+                row['urgencia_texto'] = f'{dias} días hábiles'
+        else:
+            row['dias_habiles'] = None
+            row['urgencia_color'] = '#757575'
+            row['urgencia_texto'] = 'Sin límite'
+        pendientes.append(row)
 
     return render_template("index.html", proyectos=proyectos, cerrados=cerrados, pendientes=pendientes, hoy=now_chile()[:10], filtro=filtro, comunas=COMUNAS)
 

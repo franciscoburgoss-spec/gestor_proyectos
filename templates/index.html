@@ -13,6 +13,7 @@
                 <th>Iter</th>
                 <th>Entrada</th>
                 <th>Límite</th>
+                <th>Días hábiles</th>
                 <th>Pendientes</th>
                 <th></th>
             </tr>
@@ -34,6 +35,9 @@
                     {% else %}
                         <span class="small">Sin límite</span>
                     {% endif %}
+                </td>
+                <td style="text-align:center; font-weight:600;">
+                    <span style="color:{{ s.urgencia_color }};">{{ s.urgencia_texto }}</span>
                 </td>
                 <td style="text-align:center; font-weight:600;">
                     {% if s.total_docs == 0 %}
