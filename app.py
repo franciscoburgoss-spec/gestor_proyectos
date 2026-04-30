@@ -12,17 +12,6 @@ import json
 
 TZ_CHILE = ZoneInfo("America/Santiago")
 
-# Cargar comunas con zona sísmica
-COMUNAS_PATH = BASE_DIR / "static" / "comunas.json"
-if COMUNAS_PATH.exists():
-    with open(COMUNAS_PATH, "r", encoding="utf-8") as f:
-        COMUNAS_DATA = json.load(f)
-else:
-    COMUNAS_DATA = {"comunas": []}
-
-COMUNAS = sorted([c["nombre"] for c in COMUNAS_DATA.get("comunas", [])])
-ZONAS = {c["nombre"]: c["zona"] for c in COMUNAS_DATA.get("comunas", [])}
-
 def now_chile():
     """Devuelve fecha/hora actual en Chile como string YYYY-MM-DD HH:MM:SS."""
     return datetime.now(TZ_CHILE).strftime("%Y-%m-%d %H:%M:%S")
@@ -57,6 +46,19 @@ if SECRET_KEY_FILE.exists():
 else:
     SECRET_KEY = os.urandom(32).hex()
     SECRET_KEY_FILE.write_text(SECRET_KEY)
+
+
+# Cargar comunas con zona sísmica
+COMUNAS_PATH = BASE_DIR / "static" / "comunas.json"
+if COMUNAS_PATH.exists():
+    with open(COMUNAS_PATH, "r", encoding="utf-8") as f:
+        COMUNAS_DATA = json.load(f)
+else:
+    COMUNAS_DATA = {"comunas": []}
+
+COMUNAS = sorted([c["nombre"] for c in COMUNAS_DATA.get("comunas", [])])
+ZONAS = {c["nombre"]: c["zona"] for c in COMUNAS_DATA.get("comunas", [])}
+
 
 app = Flask(__name__)
 app.secret_key = SECRET_KEY
