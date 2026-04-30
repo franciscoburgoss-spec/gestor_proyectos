@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+{% block title %}{{ doc.codigo_completo }}{% endblock %}
+{% block content %}
+
+<header>
+    <h1 class="mono">{{ doc.codigo_completo }}</h1>
+    <div class="meta">
+        <span class="badge {{ doc.estado }}">{{ doc.estado }}</span>
+        <span>{{ doc.modulo }} | {{ doc.tipo_documento }} | {{ doc.tipologia }}</span>
+    </div>
+</header>
+
+<div class="grid">
+
+    <section class="card">
+        <h2>Información</h2>
+        <form action="{{ url_for('cambiar_titulo', doc_id=doc.id) }}" method="POST" class="form-stacked">
+            <label>Título</label>
+            <input type="text" name="titulo" value="{{ doc.titulo }}">
+            <button type="submit">Actualizar título</button>
+        </form>
+
+        <div class="info-row">
+            <span class="label">Revisión:</span> {{ doc.revision }}
+        </div>
+        <div class="info-row">
+            <span class="label">Versión:</span> {{ doc.version }}
+        </div>
+        <div class="info-row">
+            <span class="label">Registrado:</span> {{ doc.fecha_registro }}
+        </div>
+        {% if doc.ruta_fisica %}
+        <div class="info-row">
+            <span class="label">Ruta:</span>
+            <code class="mono">{{ proyecto.carpeta_raiz }}/{{ doc.ruta_fisica }}</code>
+        </div>
+        {% endif %}
+    </section>
+
+    <section class="card">
+        <h2>Estado</h2>
+        <div class="info-row">
+            <span class="badge {{ doc.estado }}">{{ doc.estado }}</span>
+        </div>
+        <p style="font-size:12px; color:var(--text-muted); margin-top:8px;">
+            El estado se modifica únicamente desde las etapas de revisión (CHK, R01, R02, REX).
+        </p>
+    </section>
+
+    <section class="card">
+        <h2>Revisiones aplicadas</h2>
+        {% if revisiones %}
+        <table class="table compact">
+            <thead>
+                <tr><th>Solicitud</th><th>Resultado</th><th>Fecha</th><th>Comentarios</th></tr>
+            </thead>
+            <tbody>
+                {% for r in revisiones %}
+                <tr>
+                    <td>{{ r.sol_tipo }}</td>
+                    <td><span class="badge {{ r.resultado }}">{{ r.resultado }}</span></td>
+                    <td>{{ r.fecha_revision[:16] }}</td>
+                    <td>{{ r.comentarios or '-' }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <p class="empty">Sin revisiones registradas.</p>
+        {% endif %}
+    </section>
+
+    <section class="card">
+        <h2>Historial del documento</h2>
+        {% if historial %}
+        <ul class="timeline">
+            {% for h in historial %}
+            <li>
+                <span class="time">{{ h.fecha[:16] }}</span>
+                <span class="action">{{ h.accion }}</span>
+                <p>{{ h.descripcion }}</p>
+            </li>
+            {% endfor %}
+        </ul>
+        {% else %}
+        <p class="empty">Sin historial.</p>
+        {% endif %}
+    </section>
+
+    <section class="card danger-zone">
+        <h3>Eliminar documento</h3>
+        <form action="{{ url_for('eliminar_documento', doc_id=doc.id) }}" method="POST" class="form-stacked">
+            <input type="text" name="razon" placeholder="Razón de eliminación (obligatoria)" required>
+            <button type="submit" class="btn-danger" onclick="return confirm('¿Eliminar permanentemente? El documento irá al cementerio.')">Eliminar</button>
+        </form>
+    </section>
+
+</div>
+
+<a href="{{ url_for('ver_proyecto', proyecto_id=proyecto.id) }}" class="back">← Volver al proyecto</a>
+
+{% endblock %}

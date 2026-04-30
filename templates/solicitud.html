@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+{% block title %}{{ sol.tipo }} #{{ sol.numero_iteracion }} — {{ proyecto.acronimo }}{% endblock %}
+{% block content %}
+
+<header class="project-header">
+    <h1>{{ sol.tipo }} #{{ sol.numero_iteracion }}</h1>
+    <div class="meta">
+        <span class="badge {{ sol.estado }}">{{ sol.estado }}</span>
+        <span>Proyecto: <a href="{{ url_for('ver_proyecto', proyecto_id=proyecto.id) }}">{{ proyecto.acronimo }}</a></span>
+        <span>Entrada: {{ sol.fecha_entrada }}</span>
+        {% if sol.fecha_limite %}<span>Límite: {{ sol.fecha_limite }}</span>{% endif %}
+    </div>
+    {% if sol.notas %}<p class="notas">{{ sol.notas }}</p>{% endif %}
+</header>
+
+<!-- Resumen -->
+<div class="stats">
+    <div class="stat aprobado">
+        <div class="stat-number">{{ resumen.get('aprobado', 0) }}</div>
+        <div class="stat-label">Aprobados</div>
+    </div>
+    <div class="stat observado">
+        <div class="stat-number">{{ resumen.get('observado', 0) }}</div>
+        <div class="stat-label">Observados</div>
+    </div>
+    <div class="stat rechazado">
+        <div class="stat-number">{{ resumen.get('rechazado', 0) }}</div>
+        <div class="stat-label">Rechazados</div>
+    </div>
+    <div class="stat en_revision">
+        <div class="stat-number">{{ resumen.get('pendiente', 0) }}</div>
+        <div class="stat-label">Pendientes</div>
+    </div>
+</div>
+
+{% if sol.estado != 'completada' %}
+<div style="margin-bottom:20px; display:flex; gap:10px; align-items:center;">
+    <a href="{{ url_for('revisar_solicitud', sol_id=sol.id) }}" class="btn">▶ Iniciar revisión</a>
+    <form action="{{ url_for('completar_solicitud', sol_id=sol.id) }}" method="POST" style="display:inline;" onsubmit="return confirm('¿Marcar esta solicitud como completada?');">
+        <button type="submit" class="btn" style="background:var(--success);">✓ Completar solicitud</button>
+    </form>
+    <a href="{{ url_for('generar_email', sol_id=sol.id) }}" class="btn" style="background:#6c757d;">✉ Generar correo</a>
+</div>
+{% else %}
+<div style="margin-bottom:20px; display:flex; gap:10px; align-items:center;">
+    <span class="badge completada">Solicitud completada</span>
+    <a href="{{ url_for('generar_email', sol_id=sol.id) }}" class="btn" style="background:#6c757d;">✉ Generar correo</a>
+</div>
+{% endif %}
+
+<!-- Documentos pendientes -->
+{% if docs_pendientes %}
+<section class="card">
+    <h2>Documentos pendientes de revisión</h2>
+    <table class="table compact">
+        <thead>
+            <tr><th>Código</th><th>Título</th><th>Estado actual</th></tr>
+        </thead>
+        <tbody>
+            {% for d in docs_pendientes %}
+            <tr>
+                <td class="mono">{{ d.codigo_completo }}</td>
+                <td>{{ d.titulo }}</td>
+                <td><span class="badge {{ d.estado }}">{{ d.estado }}</span></td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</section>
+{% endif %}
+
+<!-- Revisiones aplicadas -->
+{% if revisiones %}
+<section class="card">
+    <h2>Revisiones aplicadas</h2>
+    <table class="table compact">
+        <thead>
+            <tr><th>Documento</th><th>Resultado</th><th>Comentarios</th><th>Fecha</th></tr>
+        </thead>
+        <tbody>
+            {% for r in revisiones %}
+            <tr>
+                <td class="mono">{{ r.codigo_completo }}</td>
+                <td><span class="badge {{ r.resultado }}">{{ r.resultado }}</span></td>
+                <td>{{ r.comentarios or '-' }}</td>
+                <td class="small">{{ r.fecha_revision[:16] }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</section>
+{% else %}
+<p class="empty">Aún no se han aplicado revisiones en esta solicitud.</p>
+{% endif %}
+
+<a href="{{ url_for('ver_proyecto', proyecto_id=proyecto.id) }}" class="back">← Volver al proyecto</a>
+
+{% endblock %}

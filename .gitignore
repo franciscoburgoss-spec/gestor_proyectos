@@ -1,0 +1,20 @@
+# Archivos sensibles
+token github.tex
+.secret_key
+.env
+
+# macOS
+.DS_Store
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Bases de datos locales
+*.db
+*.sqlite
+*.sqlite3
+
+# Backups locales (si no quieres subirlos)
+backups/

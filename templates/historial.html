@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block title %}Historial - {{ proyecto.acronimo }}{% endblock %}
+{% block content %}
+
+<h1>Historial: {{ proyecto.acronimo }} — {{ proyecto.nombre }}</h1>
+
+{% if historial %}
+<table class="table">
+    <thead>
+        <tr>
+            <th>Fecha</th>
+            <th>Acción</th>
+            <th>Documento</th>
+            <th>Descripción</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for h in historial %}
+        <tr>
+            <td>{{ h.fecha }}</td>
+            <td><span class="badge {{ h.accion }}">{{ h.accion }}</span></td>
+            <td>{{ h.doc_codigo or '-' }}</td>
+            <td>{{ h.descripcion }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<p class="empty">Sin historial.</p>
+{% endif %}
+
+<a href="{{ url_for('ver_proyecto', proyecto_id=proyecto.id) }}" class="back">← Volver al proyecto</a>
+
+{% endblock %}

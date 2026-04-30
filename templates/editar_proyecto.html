@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}Editar — {{ proyecto.acronimo }}{% endblock %}
+{% block content %}
+
+<header class="project-header">
+    <h1>Editar proyecto: {{ proyecto.acronimo }}</h1>
+    <div class="meta">
+        <span class="mono">{{ proyecto.carpeta_raiz }}</span>
+        <span>Creado: {{ proyecto.fecha_creacion[:10] }}</span>
+    </div>
+</header>
+
+<section class="card">
+    <form action="{{ url_for('editar_proyecto', proyecto_id=proyecto.id) }}" method="POST">
+        <div class="form-group">
+            <label for="nombre">Nombre del proyecto</label>
+            <input type="text" id="nombre" name="nombre" value="{{ proyecto.nombre }}" required>
+        </div>
+
+        <div class="form-group">
+            <label for="carpeta_raiz">Carpeta raíz</label>
+            <input type="text" id="carpeta_raiz" name="carpeta_raiz" value="{{ proyecto.carpeta_raiz }}" required>
+            <p class="help-text">Ruta absoluta donde están los archivos del proyecto. Los documentos registrados usan rutas relativas a esta carpeta.</p>
+        </div>
+
+        <div class="form-group">
+            <label for="notas">Notas</label>
+            <textarea id="notas" name="notas" rows="4">{{ proyecto.notas or '' }}</textarea>
+        </div>
+
+        <div class="form-actions">
+            <button type="submit" class="btn">Guardar cambios</button>
+            <a href="{{ url_for('ver_proyecto', proyecto_id=proyecto.id) }}" class="btn btn-secondary">Cancelar</a>
+        </div>
+    </form>
+</section>
+
+{% endblock %}

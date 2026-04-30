@@ -1,0 +1,166 @@
+{% extends "base.html" %}
+{% block content %}
+
+<h1>📥 Pendientes de revisión</h1>
+
+{% if pendientes %}
+<section class="card" style="border-left:4px solid var(--warning);">
+    <table class="table compact">
+        <thead>
+            <tr>
+                <th>Proyecto</th>
+                <th>Solicitud</th>
+                <th>Iter</th>
+                <th>Entrada</th>
+                <th>Límite</th>
+                <th>Pendientes</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for s in pendientes %}
+            <tr>
+                <td><strong>{{ s.acronimo }}</strong> <span class="small">{{ s.proyecto_nombre }}</span></td>
+                <td><span class="badge {{ s.estado }}">{{ s.tipo }}</span></td>
+                <td>{{ s.numero_iteracion }}</td>
+                <td>{{ s.fecha_entrada }}</td>
+                <td>
+                    {% if s.fecha_limite %}
+                        {% if s.fecha_limite < hoy %}
+                            <span style="color:var(--danger); font-weight:600;">🔴 {{ s.fecha_limite }}</span>
+                        {% else %}
+                            {{ s.fecha_limite }}
+                        {% endif %}
+                    {% else %}
+                        <span class="small">Sin límite</span>
+                    {% endif %}
+                </td>
+                <td style="text-align:center; font-weight:600;">
+                    {% if s.docs_pendientes > 0 %}
+                        <span style="color:var(--accent);">{{ s.docs_pendientes }} doc</span>
+                    {% else %}
+                        <span style="color:var(--success);">✓ listo</span>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if s.docs_pendientes > 0 %}
+                        <a href="{{ url_for('revisar_solicitud', sol_id=s.id) }}" class="btn-sm">Revisar</a>
+                    {% else %}
+                        <a href="{{ url_for('ver_solicitud', sol_id=s.id) }}" class="btn-sm">Ver</a>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</section>
+{% else %}
+<p class="empty">No hay solicitudes pendientes. 🎉</p>
+{% endif %}
+
+<h1>Proyectos Activos</h1>
+
+<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
+    <a href="{{ url_for('reporte_global_md') }}" class="btn-sm">📊 Reporte global (MD)</a>
+</div>
+
+<section class="card">
+    <h2>Crear nuevo proyecto</h2>
+    <form action="{{ url_for('crear_proyecto') }}" method="POST" class="form-inline">
+        <input type="text" name="acronimo" placeholder="Acrónimo (5 chars max)" maxlength="5" required>
+        <input type="text" name="nombre" placeholder="Nombre del proyecto" required>
+        <input type="text" name="carpeta_raiz" placeholder="Ruta raíz (ej: /Users/fran/Proyectos/LDV)" required>
+        <input type="text" name="notas" placeholder="Notas (opcional)">
+        <button type="submit">Crear</button>
+    </form>
+</section>
+
+<section>
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
+        <form method="GET" action="{{ url_for('index') }}" class="form-inline" style="margin:0;">
+            <label style="margin-right:0.5rem;">Filtrar:</label>
+            <select name="filtro" onchange="this.form.submit()" style="min-width:160px;">
+                <option value="">Todas las solicitudes</option>
+                <option value="REX" {% if filtro == 'REX' %}selected{% endif %}>REX</option>
+                <option value="R02" {% if filtro == 'R02' %}selected{% endif %}>R02</option>
+                <option value="R01" {% if filtro == 'R01' %}selected{% endif %}>R01</option>
+                <option value="CHK" {% if filtro == 'CHK' %}selected{% endif %}>CHK</option>
+                <option value="SIN_SOLICITUD" {% if filtro == 'SIN_SOLICITUD' %}selected{% endif %}>Sin solicitud</option>
+            </select>
+            {% if filtro %}
+                <a href="{{ url_for('index') }}" class="btn-sm" style="margin-left:0.5rem;">Limpiar</a>
+            {% endif %}
+        </form>
+        <span class="small">{{ proyectos|length }} proyecto(s)</span>
+    </div>
+
+    {% if proyectos %}
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Acrónimo</th>
+                <th>Nombre</th>
+                <th>Solicitud activa</th>
+                <th>Carpeta</th>
+                <th>Creado</th>
+                <th>Acciones</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for p in proyectos %}
+            <tr>
+                <td><strong>{{ p.acronimo }}</strong></td>
+                <td>{{ p.nombre }}</td>
+                <td>
+                    {% if p.sol_tipo %}
+                        {% if p.sol_tipo == 'REX' %}
+                            <span class="badge" style="background:#c62828; color:#fff;">{{ p.sol_tipo }}#{{ p.sol_iter }}</span>
+                        {% elif p.sol_tipo == 'R02' %}
+                            <span class="badge" style="background:#ef6c00; color:#fff;">{{ p.sol_tipo }}#{{ p.sol_iter }}</span>
+                        {% elif p.sol_tipo == 'R01' %}
+                            <span class="badge" style="background:#1565c0; color:#fff;">{{ p.sol_tipo }}#{{ p.sol_iter }}</span>
+                        {% else %}
+                            <span class="badge" style="background:#2e7d32; color:#fff;">{{ p.sol_tipo }}#{{ p.sol_iter }}</span>
+                        {% endif %}
+                    {% else %}
+                        <span class="badge" style="background:#757575; color:#fff;">Sin solicitud</span>
+                    {% endif %}
+                </td>
+                <td class="mono">{{ p.carpeta_raiz }}</td>
+                <td>{{ p.fecha_creacion[:10] }}</td>
+                <td>
+                    <a href="{{ url_for('ver_proyecto', proyecto_id=p.id) }}" class="btn">Ver</a>
+                    <a href="{{ url_for('ver_historial', proyecto_id=p.id) }}" class="btn">Historial</a>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p class="empty">No hay proyectos activos{% if filtro %} con ese filtro{% endif %}.</p>
+    {% endif %}
+</section>
+
+{% if cerrados %}
+<section class="muted">
+    <h2>Últimos proyectos cerrados</h2>
+    <table class="table">
+        <thead>
+            <tr><th>Acrónimo</th><th>Nombre</th><th>Estado</th><th>Cierre</th><th>Motivo</th></tr>
+        </thead>
+        <tbody>
+            {% for p in cerrados %}
+            <tr>
+                <td>{{ p.acronimo }}</td>
+                <td>{{ p.nombre }}</td>
+                <td><span class="badge cerrado">{{ p.estado_global }}</span></td>
+                <td>{{ p.fecha_cierre[:10] if p.fecha_cierre else '-' }}</td>
+                <td>{{ p.motivo_cierre or '-' }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</section>
+{% endif %}
+
+{% endblock %}

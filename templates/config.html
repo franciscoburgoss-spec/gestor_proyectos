@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block title %}Configuración{% endblock %}
+{% block content %}
+
+<h1>Configuración</h1>
+
+<div class="grid">
+
+    <section class="card">
+        <h2>Módulos</h2>
+        <form action="{{ url_for('agregar_modulo') }}" method="POST" class="form-inline">
+            <input type="text" name="codigo" placeholder="Código (3 chars)" maxlength="3" required>
+            <input type="text" name="nombre" placeholder="Nombre" required>
+            <button type="submit">Agregar</button>
+        </form>
+
+        <table class="table compact">
+            <thead>
+                <tr><th>Código</th><th>Nombre</th><th>Estado</th></tr>
+            </thead>
+            <tbody>
+                {% for m in modulos %}
+                <tr>
+                    <td class="mono">{{ m.codigo }}</td>
+                    <td>{{ m.nombre }}</td>
+                    <td><span class="badge {{ 'activo' if m.activo else 'inactivo' }}">{{ 'Activo' if m.activo else 'Inactivo' }}</span></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </section>
+
+    <section class="card">
+        <h2>Tipos de Documento</h2>
+        <form action="{{ url_for('agregar_tipo') }}" method="POST" class="form-inline">
+            <input type="text" name="codigo" placeholder="Código (3 chars)" maxlength="3" required>
+            <input type="text" name="nombre" placeholder="Nombre" required>
+            <button type="submit">Agregar</button>
+        </form>
+
+        <table class="table compact">
+            <thead>
+                <tr><th>Código</th><th>Nombre</th><th>Estado</th></tr>
+            </thead>
+            <tbody>
+                {% for t in tipos %}
+                <tr>
+                    <td class="mono">{{ t.codigo }}</td>
+                    <td>{{ t.nombre }}</td>
+                    <td><span class="badge {{ 'activo' if t.activo else 'inactivo' }}">{{ 'Activo' if t.activo else 'Inactivo' }}</span></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </section>
+
+</div>
+
+<a href="{{ url_for('index') }}" class="back">← Volver</a>
+
+{% endblock %}

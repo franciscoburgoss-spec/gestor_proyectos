@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block title %}Revisar {{ sol.tipo }} — {{ proyecto.acronimo }}{% endblock %}
+{% block content %}
+
+<header class="project-header">
+    <h1>Revisar {{ sol.tipo }} #{{ sol.numero_iteracion }}</h1>
+    <div class="meta">
+        <span>Proyecto: <a href="{{ url_for('ver_proyecto', proyecto_id=proyecto.id) }}">{{ proyecto.acronimo }}</a></span>
+        <span>{{ documentos|length }} documento(s) por revisar</span>
+    </div>
+</header>
+
+{% if not documentos %}
+<div class="card">
+    <p class="empty">No hay documentos pendientes de revisión. Todos están aprobados o no hay documentos registrados.</p>
+</div>
+{% else %}
+
+{% for d in documentos %}
+<section class="card">
+    <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:12px;">
+        <div>
+            <h3 style="margin:0;">{{ d.codigo_completo }}</h3>
+            <p style="margin:4px 0 0; color:var(--text-muted); font-size:13px;">{{ d.titulo }}</p>
+        </div>
+        <span class="badge {{ d.estado }}">{{ d.estado }}</span>
+    </div>
+
+    <form action="{{ url_for('aplicar_revision') }}" method="POST" class="form-stacked">
+        <input type="hidden" name="solicitud_id" value="{{ sol.id }}">
+        <input type="hidden" name="documento_id" value="{{ d.id }}">
+
+        <div class="row" style="margin-bottom:8px;">
+            <label style="width:100%; font-size:12px; color:var(--text-muted);">Resultado de revisión</label>
+            <select name="resultado" required>
+                <option value="">Elegir...</option>
+                <option value="aprobado" {% if d.ya_revisado == 'aprobado' %}selected{% endif %}>✅ Aprobado</option>
+                <option value="observado" {% if d.ya_revisado == 'observado' %}selected{% endif %}>⚠️ Observado</option>
+                <option value="rechazado" {% if d.ya_revisado == 'rechazado' %}selected{% endif %}>❌ Rechazado</option>
+            </select>
+        </div>
+
+        <textarea name="comentarios" rows="2" placeholder="Comentarios de la revisión (opcional)" style="margin-bottom:8px;">{{ d.ya_comentario or '' }}</textarea>
+
+        <button type="submit">
+            {% if d.ya_revisado %}🔄 Actualizar{% else %}✓ Registrar revisión{% endif %}
+        </button>
+    </form>
+
+    {% if d.ya_revisado %}
+    <p style="margin-top:8px; font-size:11px; color:var(--text-muted);">
+        Ya revisado como <strong>{{ d.ya_revisado }}</strong>. Puedes cambiarlo arriba.
+    </p>
+    {% endif %}
+</section>
+{% endfor %}
+
+{% endif %}
+
+<div style="margin-top:20px;">
+    <a href="{{ url_for('ver_solicitud', sol_id=sol.id) }}" class="back">← Volver al resumen de la solicitud</a>
+</div>
+
+{% endblock %}

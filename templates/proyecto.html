@@ -1,0 +1,162 @@
+{% extends "base.html" %}
+{% block title %}{{ proyecto.acronimo }} - Proyecto{% endblock %}
+{% block content %}
+
+<header class="project-header">
+    <h1>{{ proyecto.acronimo }} — {{ proyecto.nombre }}</h1>
+    <div class="meta">
+        <span class="badge {{ proyecto.estado_global }}">{{ proyecto.estado_global }}</span>
+        <span class="mono">{{ proyecto.carpeta_raiz }}</span>
+        <span>Creado: {{ proyecto.fecha_creacion[:10] }}</span>
+    </div>
+    {% if proyecto.notas %}
+    <p class="notas">{{ proyecto.notas }}</p>
+    {% endif %}
+    <div style="margin-top:10px;">
+        <a href="{{ url_for('reporte_md', proyecto_id=proyecto.id) }}" class="btn-sm">📄 Trazabilidad (MD)</a>
+        <a href="{{ url_for('reporte_pdf', proyecto_id=proyecto.id) }}" class="btn-sm">📋 Trazabilidad (PDF)</a>
+        <a href="{{ url_for('repositorio_md', proyecto_id=proyecto.id) }}" class="btn-sm">🗂️ Repositorio</a>
+        <a href="{{ url_for('editar_proyecto', proyecto_id=proyecto.id) }}" class="btn-sm" style="background:var(--warning);">✏️ Editar</a>
+    </div>
+</header>
+
+<!-- Resumen -->
+{% if resumen %}
+<div class="stats">
+    {% for estado, cantidad in resumen.items() %}
+    <div class="stat {{ estado }}">
+        <div class="stat-number">{{ cantidad }}</div>
+        <div class="stat-label">{{ estado }}</div>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+<div class="grid">
+
+    <!-- Documentos -->
+    <section class="card">
+        <h2>Documentos</h2>
+        <form action="{{ url_for('crear_documento') }}" method="POST" class="form-stacked">
+            <input type="hidden" name="proyecto_id" value="{{ proyecto.id }}">
+            <input type="hidden" name="acronimo" value="{{ proyecto.acronimo }}">
+            <div class="row">
+                <select name="modulo" required>
+                    <option value="">Módulo</option>
+                    {% for m in config_modulos %}
+                    <option value="{{ m.codigo }}">{{ m.codigo }} - {{ m.nombre }}</option>
+                    {% endfor %}
+                </select>
+                <select name="revision" required>
+                    <option value="">Revisión</option>
+                    <option value="CHK">CHK</option>
+                    <option value="R01">R01</option>
+                    <option value="R02">R02</option>
+                    <option value="REX">REX</option>
+                </select>
+            </div>
+            <div class="row">
+                <select name="tipo_documento" required>
+                    <option value="">Tipo</option>
+                    {% for t in config_tipos %}
+                    <option value="{{ t.codigo }}">{{ t.codigo }} - {{ t.nombre }}</option>
+                    {% endfor %}
+                </select>
+                <input type="text" name="tipologia" placeholder="T01" maxlength="3" required>
+                <input type="text" name="version" placeholder="V01" maxlength="3" required>
+            </div>
+            <input type="text" name="titulo" placeholder="Título del documento" required>
+            <input type="text" name="ruta_fisica" placeholder="Ruta relativa (ej: ING/CHK/EST-CHK/archivo.pdf)">
+            <button type="submit">Registrar documento</button>
+        </form>
+
+        {% if documentos %}
+        <table class="table compact">
+            <thead>
+                <tr><th>Código</th><th>Título</th><th>Estado</th><th></th></tr>
+            </thead>
+            <tbody>
+                {% for d in documentos %}
+                <tr class="doc-{{ d.estado }}">
+                    <td class="mono">{{ d.codigo_completo }}</td>
+                    <td>{{ d.titulo }}</td>
+                    <td><span class="badge {{ d.estado }}">{{ d.estado }}</span></td>
+                    <td><a href="{{ url_for('ver_documento', doc_id=d.id) }}" class="btn-sm">Ver</a></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <p class="empty">Sin documentos registrados.</p>
+        {% endif %}
+    </section>
+
+    <!-- Solicitudes -->
+    <section class="card">
+        <h2>Solicitudes / Emails</h2>
+        <form action="{{ url_for('crear_solicitud') }}" method="POST" class="form-stacked">
+            <input type="hidden" name="proyecto_id" value="{{ proyecto.id }}">
+            <div class="row">
+                <select name="tipo" required>
+                    <option value="">Tipo</option>
+                    <option value="CHK">Checklist</option>
+                    <option value="R01">Revisión 01</option>
+                    <option value="R02">Revisión 02</option>
+                    <option value="REX">Revisión Excepcional</option>
+                </select>
+            </div>
+            <label>Fecha entrada</label>
+            <input type="date" name="fecha_entrada" required>
+            <label>Fecha límite</label>
+            <input type="date" name="fecha_limite">
+            <input type="text" name="notas" placeholder="Notas">
+            <button type="submit">Registrar solicitud</button>
+        </form>
+
+        {% if solicitudes %}
+        <table class="table compact">
+            <thead>
+                <tr><th>Tipo</th><th>Iter</th><th>Entrada</th><th>Límite</th><th>Estado</th><th></th></tr>
+            </thead>
+            <tbody>
+                {% for s in solicitudes %}
+                <tr>
+                    <td><a href="{{ url_for('ver_solicitud', sol_id=s.id) }}">{{ s.tipo }}</a></td>
+                    <td>{{ s.numero_iteracion }}</td>
+                    <td>{{ s.fecha_entrada }}</td>
+                    <td>{{ s.fecha_limite or '-' }}</td>
+                    <td><span class="badge {{ s.estado }}">{{ s.estado }}</span></td>
+                    <td>
+                        {% if s.estado != 'completada' %}
+                        <a href="{{ url_for('revisar_solicitud', sol_id=s.id) }}" class="btn-sm">Revisar</a>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <p class="empty">Sin solicitudes registradas.</p>
+        {% endif %}
+    </section>
+
+</div>
+
+<!-- Cierre -->
+{% if proyecto.estado_global == 'activo' %}
+<section class="card danger-zone">
+    <h3>Cerrar proyecto</h3>
+    <form action="{{ url_for('cerrar_proyecto', proyecto_id=proyecto.id) }}" method="POST">
+        <select name="tipo" required>
+            <option value="cerrado_aprobado">Cerrar como APROBADO</option>
+            <option value="cerrado_rechazado">Cerrar como RECHAZADO</option>
+        </select>
+        <textarea name="motivo_cierre" placeholder="Motivo del cierre / razón del rechazo (obligatorio si es rechazado)" rows="3" style="width:100%;margin-top:10px;"></textarea>
+        <button type="submit" class="btn-danger" onclick="return confirm('¿Cerrar proyecto? Esta acción no se puede deshacer.')">Cerrar proyecto</button>
+    </form>
+</section>
+{% endif %}
+
+<a href="{{ url_for('index') }}" class="back">← Volver</a>
+
+{% endblock %}

@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}Cementerio{% endblock %}
+{% block content %}
+
+<h1>Cementerio de Documentos</h1>
+
+{% if eliminados %}
+<table class="table">
+    <thead>
+        <tr>
+            <th>Proyecto</th>
+            <th>Código</th>
+            <th>Título</th>
+            <th>Razón</th>
+            <th>Fecha</th>
+            <th>Ruta original</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for e in eliminados %}
+        <tr>
+            <td>{{ e.acronimo }} — {{ e.nombre }}</td>
+            <td class="mono">{{ e.codigo_completo }}</td>
+            <td>{{ e.titulo or '-' }}</td>
+            <td>{{ e.razon_eliminacion }}</td>
+            <td>{{ e.fecha_eliminacion[:16] }}</td>
+            <td class="mono small">{{ e.ruta_fisica_original or '-' }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<p class="empty">No hay documentos eliminados.</p>
+{% endif %}
+
+<a href="{{ url_for('index') }}" class="back">← Volver</a>
+
+{% endblock %}
