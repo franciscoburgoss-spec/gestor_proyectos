@@ -8,9 +8,6 @@
         <span class="badge {{ proyecto.estado_global }}">{{ proyecto.estado_global }}</span>
         <span class="mono">{{ proyecto.carpeta_raiz }}</span>
         <span>Creado: {{ proyecto.fecha_creacion[:10] }}</span>
-        {% if proyecto.comuna %}
-        <span>{{ proyecto.comuna }}{% if proyecto.zona_sismica %} (Z{{ proyecto.zona_sismica }}){% endif %}</span>
-        {% endif %}
     </div>
     {% if proyecto.notas %}
     <p class="notas">{{ proyecto.notas }}</p>
@@ -22,6 +19,36 @@
         <a href="{{ url_for('editar_proyecto', proyecto_id=proyecto.id) }}" class="btn-sm" style="background:var(--warning);">✏️ Editar</a>
     </div>
 </header>
+
+<!-- Tarjetas de info del proyecto -->
+<section class="grid" style="margin-bottom:1rem;">
+    <div class="card" style="padding:1rem;">
+        <div style="display:flex; gap:1.5rem; flex-wrap:wrap;">
+            {% if proyecto.comuna %}
+            <div>
+                <div class="small" style="color:var(--muted);">Comuna</div>
+                <div style="font-weight:600;">{{ proyecto.comuna }}</div>
+            </div>
+            {% endif %}
+            <div>
+                <div class="small" style="color:var(--muted);">Zona sísmica</div>
+                <div style="font-weight:600; font-size:1.2rem;">{% if proyecto.zona_sismica %}Z{{ proyecto.zona_sismica }}{% else %}<span class="small">—</span>{% endif %}</div>
+            </div>
+            <div>
+                <div class="small" style="color:var(--muted);">Tipologías</div>
+                <div style="font-weight:600;">{{ num_tipologias or 0 }}</div>
+            </div>
+            <div>
+                <div class="small" style="color:var(--muted);">Elementos</div>
+                <div style="display:flex; gap:0.3rem; flex-wrap:wrap; margin-top:2px;">
+                    {% for e in elementos %}
+                        <span class="badge {{ e.tipo }}" title="{{ e.nombre }}">{{ e.codigo }}</span>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
 
 <!-- Resumen -->
 {% if resumen %}
@@ -65,7 +92,12 @@
                     <option value="{{ t.codigo }}">{{ t.codigo }} - {{ t.nombre }}</option>
                     {% endfor %}
                 </select>
-                <input type="text" name="tipologia" placeholder="T01" maxlength="3" required>
+                <select name="elemento_id" required>
+                    <option value="">Elemento</option>
+                    {% for e in elementos %}
+                    <option value="{{ e.id }}">{{ e.codigo }} — {{ e.nombre }}</option>
+                    {% endfor %}
+                </select>
                 <input type="text" name="version" placeholder="V01" maxlength="3" required>
             </div>
             <input type="text" name="titulo" placeholder="Título del documento" required>
@@ -76,12 +108,13 @@
         {% if documentos %}
         <table class="table compact">
             <thead>
-                <tr><th>Código</th><th>Título</th><th>Estado</th><th></th></tr>
+                <tr><th>Código</th><th>Elemento</th><th>Título</th><th>Estado</th><th></th></tr>
             </thead>
             <tbody>
                 {% for d in documentos %}
                 <tr class="doc-{{ d.estado }}">
                     <td class="mono">{{ d.codigo_completo }}</td>
+                    <td><span class="badge {{ d.elem_codigo }}" title="{{ d.elem_nombre }}">{{ d.elem_codigo or d.tipologia }}</span></td>
                     <td>{{ d.titulo }}</td>
                     <td><span class="badge {{ d.estado }}">{{ d.estado }}</span></td>
                     <td><a href="{{ url_for('ver_documento', doc_id=d.id) }}" class="btn-sm">Ver</a></td>

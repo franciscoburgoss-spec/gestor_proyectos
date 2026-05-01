@@ -20,12 +20,35 @@
         <div class="form-group">
             <label for="carpeta_raiz">Carpeta raíz</label>
             <input type="text" id="carpeta_raiz" name="carpeta_raiz" value="{{ proyecto.carpeta_raiz }}" required>
-            <p class="help-text">Ruta absoluta donde están los archivos del proyecto. Los documentos registrados usan rutas relativas a esta carpeta.</p>
+            <p class="help-text">Ruta absoluta donde están los archivos del proyecto.</p>
+        </div>
+
+        <div class="row">
+            <div class="form-group" style="flex:1;">
+                <label for="comuna">Comuna</label>
+                <select id="comuna" name="comuna" style="min-width:180px;">
+                    <option value="" {% if not proyecto.comuna %}selected{% endif %}>Sin comuna</option>
+                    {% for c in comunas %}
+                        <option value="{{ c }}" {% if proyecto.comuna == c %}selected{% endif %}>{{ c }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group" style="flex:1;">
+                <label for="zona_sismica">Zona sísmica</label>
+                <input type="number" id="zona_sismica" name="zona_sismica" value="{{ proyecto.zona_sismica or '' }}" min="1" max="4" placeholder="Ej: 2">
+                <p class="help-text">Editable directamente. No depende solo de la comuna.</p>
+            </div>
         </div>
 
         <div class="form-group">
             <label for="notas">Notas</label>
             <textarea id="notas" name="notas" rows="4">{{ proyecto.notas or '' }}</textarea>
+        </div>
+
+        <div class="form-group">
+            <label for="nuevos_elementos">Agregar elementos del proyecto</label>
+            <input type="text" id="nuevos_elementos" name="nuevos_elementos" placeholder="nombre:código, nombre:código (ej: Sede Social:SMU, Muros:MUR)">
+            <p class="help-text">Solo agrega. Los elementos existentes se muestran abajo. Para eliminar, contacta a Schema 😊</p>
         </div>
 
         <div class="form-actions">
@@ -34,5 +57,25 @@
         </div>
     </form>
 </section>
+
+{% if elementos %}
+<section class="card">
+    <h2>Elementos del proyecto</h2>
+    <table class="table compact">
+        <thead>
+            <tr><th>Código</th><th>Nombre</th><th>Tipo</th></tr>
+        </thead>
+        <tbody>
+            {% for e in elementos %}
+            <tr>
+                <td class="mono">{{ e.codigo }}</td>
+                <td>{{ e.nombre }}</td>
+                <td><span class="badge {{ e.tipo }}">{{ e.tipo }}</span></td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</section>
+{% endif %}
 
 {% endblock %}

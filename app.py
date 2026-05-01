@@ -120,6 +120,50 @@ def migrate_db():
         db.execute("ALTER TABLE proyectos ADD COLUMN zona_sismica INTEGER")
         db.commit()
 
+    # ── Migración: elementos del proyecto ──
+    db.execute("""
+        CREATE TABLE IF NOT EXISTS elementos_proyecto (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            proyecto_id INTEGER NOT NULL,
+            codigo TEXT NOT NULL,
+            nombre TEXT NOT NULL,
+            tipo TEXT NOT NULL DEFAULT 'obra_complementaria',
+            orden INTEGER DEFAULT 0,
+            FOREIGN KEY (proyecto_id) REFERENCES proyectos(id)
+        )
+    """)
+    db.execute("CREATE INDEX IF NOT EXISTS idx_elem_proyecto ON elementos_proyecto(proyecto_id)")
+    db.commit()
+
+    # Agregar elemento_id a documentos si no existe
+    doc_cols = [c[1] for c in db.execute("PRAGMA table_info(documentos)").fetchall()]
+    if "elemento_id" not in doc_cols:
+        db.execute("ALTER TABLE documentos ADD COLUMN elemento_id INTEGER")
+        db.commit()
+
+    # Migrar proyectos existentes: crear GLB automáticamente
+    proyectos = db.execute("SELECT id FROM proyectos").fetchall()
+    for p in proyectos:
+        pid = p["id"]
+        tiene = db.execute(
+            "SELECT COUNT(*) FROM elementos_proyecto WHERE proyecto_id = ?", (pid,)
+        ).fetchone()[0]
+        if tiene == 0:
+            db.execute(
+                "INSERT INTO elementos_proyecto (proyecto_id, codigo, nombre, tipo, orden) VALUES (?, ?, ?, ?, ?)",
+                (pid, "GLB", "Elementos Globales", "global", 0)
+            )
+            db.commit()
+            elem = db.execute(
+                "SELECT id FROM elementos_proyecto WHERE proyecto_id = ? AND codigo = ?", (pid, "GLB")
+            ).fetchone()
+            if elem:
+                db.execute(
+                    "UPDATE documentos SET elemento_id = ? WHERE proyecto_id = ? AND elemento_id IS NULL",
+                    (elem["id"], pid)
+                )
+                db.commit()
+
     db.close()
 
 # ──────────────────────────────────────────────────────────────
@@ -217,27 +261,78 @@ def crear_proyecto():
     nombre = request.form["nombre"].strip()
     carpeta = request.form["carpeta_raiz"].strip()
     comuna = request.form.get("comuna", "").strip()
+    zona = request.form.get("zona_sismica", "").strip()
     notas = request.form.get("notas", "").strip()
+    num_tipologias = request.form.get("num_tipologias", "0").strip()
 
-    zona = ZONAS.get(comuna, None) if comuna else None
+    # Zona sísmica: prioridad al input directo, fallback a comunas.json
+    zona_sismica = None
+    if zona:
+        try:
+            zona_sismica = int(zona)
+        except ValueError:
+            zona_sismica = None
+    if zona_sismica is None and comuna:
+        zona_sismica = ZONAS.get(comuna, None)
 
     try:
         db.execute(
             "INSERT INTO proyectos (acronimo, nombre, carpeta_raiz, comuna, zona_sismica, notas, fecha_creacion) VALUES (?,?,?,?,?,?,?)",
-            (acronimo, nombre, carpeta, comuna, zona, notas, now_chile())
+            (acronimo, nombre, carpeta, comuna, zona_sismica, notas, now_chile())
         )
         db.commit()
-        # Registrar en historial
         proyecto = db.execute("SELECT id FROM proyectos WHERE acronimo = ?", (acronimo,)).fetchone()
+        pid = proyecto["id"]
+
+        # Crear elementos automáticamente
+        # 1. Tipologías
+        try:
+            nt = int(num_tipologias)
+        except ValueError:
+            nt = 0
+        if nt > 0:
+            for i in range(1, nt + 1):
+                cod = f"T{i:02d}"
+                db.execute(
+                    "INSERT INTO elementos_proyecto (proyecto_id, codigo, nombre, tipo, orden) VALUES (?,?,?,?,?)",
+                    (pid, cod, f"Tipología {i}", "tipologia", i)
+                )
+
+        # 2. Elemento GLB siempre presente
+        db.execute(
+            "INSERT INTO elementos_proyecto (proyecto_id, codigo, nombre, tipo, orden) VALUES (?,?,?,?,?)",
+            (pid, "GLB", "Elementos Globales", "global", 999)
+        )
+
+        # 3. Elementos complementarios opcionales (nombre1:codigo1,nombre2:codigo2)
+        extras = request.form.get("elementos_extra", "").strip()
+        if extras:
+            for item in extras.split(","):
+                item = item.strip()
+                if ":" in item:
+                    nombre_elem, codigo_elem = item.split(":", 1)
+                    nombre_elem = nombre_elem.strip()
+                    codigo_elem = codigo_elem.strip().upper()
+                    if nombre_elem and codigo_elem:
+                        db.execute(
+                            "INSERT INTO elementos_proyecto (proyecto_id, codigo, nombre, tipo, orden) VALUES (?,?,?,?,?)",
+                            (pid, codigo_elem, nombre_elem, "obra_complementaria", 100)
+                        )
+
+        db.commit()
+
+        # Registrar en historial
         desc = f"Proyecto {acronimo} creado"
         if comuna:
             desc += f" (comuna: {comuna}"
-            if zona:
-                desc += f", Z{zona}"
+            if zona_sismica:
+                desc += f", Z{zona_sismica}"
             desc += ")"
+        if nt > 0:
+            desc += f" con {nt} tipologías"
         db.execute(
             "INSERT INTO historial (proyecto_id, accion, descripcion, fecha) VALUES (?,?,?,?)",
-            (proyecto["id"], "creacion", desc, now_chile())
+            (pid, "creacion", desc, now_chile())
         )
         db.commit()
         flash(f"Proyecto {acronimo} creado correctamente", "ok")
@@ -260,9 +355,19 @@ def editar_proyecto(proyecto_id):
         nombre = request.form["nombre"].strip()
         carpeta = request.form["carpeta_raiz"].strip()
         comuna = request.form.get("comuna", "").strip()
+        zona_raw = request.form.get("zona_sismica", "").strip()
         notas = request.form.get("notas", "").strip()
 
-        nueva_zona = ZONAS.get(comuna, None) if comuna else None
+        # Zona sísmica: input directo tiene prioridad
+        nueva_zona = None
+        if zona_raw:
+            try:
+                nueva_zona = int(zona_raw)
+            except ValueError:
+                nueva_zona = proyecto.get("zona_sismica")
+        else:
+            nueva_zona = proyecto.get("zona_sismica")
+
         zona_anterior = proyecto.get("zona_sismica")
 
         if not nombre or not carpeta:
@@ -276,8 +381,8 @@ def editar_proyecto(proyecto_id):
             cambios.append(f"carpeta: '{proyecto['carpeta_raiz']}' → '{carpeta}'")
         if comuna != (proyecto["comuna"] or ""):
             cambios.append(f"comuna: '{proyecto['comuna'] or '-'}' → '{comuna or '-'}'")
-            if nueva_zona != zona_anterior:
-                cambios.append(f"zona sísmica: Z{zona_anterior or '-'} → Z{nueva_zona or '-'}'")
+        if nueva_zona != zona_anterior:
+            cambios.append(f"zona sísmica: Z{zona_anterior or '-'} → Z{nueva_zona or '-'}'")
         if notas != (proyecto["notas"] or ""):
             cambios.append("notas actualizadas")
 
@@ -285,6 +390,28 @@ def editar_proyecto(proyecto_id):
             "UPDATE proyectos SET nombre = ?, carpeta_raiz = ?, comuna = ?, zona_sismica = ?, notas = ? WHERE id = ?",
             (nombre, carpeta, comuna, nueva_zona, notas, proyecto_id)
         )
+
+        # Agregar nuevos elementos si vienen en el form
+        nuevos_elementos = request.form.get("nuevos_elementos", "").strip()
+        if nuevos_elementos:
+            for item in nuevos_elementos.split(","):
+                item = item.strip()
+                if ":" in item:
+                    nombre_elem, codigo_elem = item.split(":", 1)
+                    nombre_elem = nombre_elem.strip()
+                    codigo_elem = codigo_elem.strip().upper()
+                    if nombre_elem and codigo_elem:
+                        # Verificar que no exista ya
+                        existe = db.execute(
+                            "SELECT id FROM elementos_proyecto WHERE proyecto_id = ? AND codigo = ?",
+                            (proyecto_id, codigo_elem)
+                        ).fetchone()
+                        if not existe:
+                            db.execute(
+                                "INSERT INTO elementos_proyecto (proyecto_id, codigo, nombre, tipo, orden) VALUES (?,?,?,?,?)",
+                                (proyecto_id, codigo_elem, nombre_elem, "obra_complementaria", 100)
+                            )
+                            cambios.append(f"elemento agregado: {codigo_elem} ({nombre_elem})")
 
         if cambios:
             desc = "Proyecto editado. " + "; ".join(cambios)
@@ -297,7 +424,11 @@ def editar_proyecto(proyecto_id):
         flash("Proyecto actualizado", "ok")
         return redirect(url_for("ver_proyecto", proyecto_id=proyecto_id))
 
-    return render_template("editar_proyecto.html", proyecto=proyecto, comunas=COMUNAS)
+    elementos = db.execute(
+        "SELECT * FROM elementos_proyecto WHERE proyecto_id = ? ORDER BY orden, id",
+        (proyecto_id,)
+    ).fetchall()
+    return render_template("editar_proyecto.html", proyecto=proyecto, comunas=COMUNAS, elementos=elementos)
 
 
 @app.route("/proyecto/<int:proyecto_id>")
@@ -308,8 +439,17 @@ def ver_proyecto(proyecto_id):
         flash("Proyecto no encontrado", "err")
         return redirect(url_for("index"))
 
+    elementos = db.execute(
+        "SELECT * FROM elementos_proyecto WHERE proyecto_id = ? ORDER BY orden, id",
+        (proyecto_id,)
+    ).fetchall()
+
     documentos = db.execute(
-        "SELECT * FROM documentos WHERE proyecto_id = ? AND activo = 1 ORDER BY codigo_completo",
+        """SELECT d.*, e.codigo as elem_codigo, e.nombre as elem_nombre 
+           FROM documentos d 
+           LEFT JOIN elementos_proyecto e ON d.elemento_id = e.id 
+           WHERE d.proyecto_id = ? AND d.activo = 1 
+           ORDER BY d.codigo_completo""",
         (proyecto_id,)
     ).fetchall()
 
@@ -330,7 +470,9 @@ def ver_proyecto(proyecto_id):
 
     return render_template("proyecto.html", proyecto=proyecto, documentos=documentos,
                            solicitudes=solicitudes, resumen=resumen,
-                           config_modulos=config_modulos, config_tipos=config_tipos)
+                           config_modulos=config_modulos, config_tipos=config_tipos,
+                           elementos=elementos,
+                           num_tipologias=len([e for e in elementos if e["tipo"] == "tipologia"]))
 
 @app.route("/proyecto/<int:proyecto_id>/cerrar", methods=["POST"])
 def cerrar_proyecto(proyecto_id):
@@ -364,20 +506,32 @@ def crear_documento():
     modulo = request.form["modulo"].strip().upper()
     revision = request.form["revision"].strip().upper()
     tipo_doc = request.form["tipo_documento"].strip().upper()
-    tipologia = request.form["tipologia"].strip().upper()
+    elemento_id = request.form.get("elemento_id", "").strip()
     version = request.form["version"].strip().upper()
     titulo = request.form["titulo"].strip()
     ruta = request.form.get("ruta_fisica", "").strip()
+
+    # Resolver elemento
+    tipologia = "GLB"
+    elem_id_int = None
+    if elemento_id:
+        try:
+            elem_id_int = int(elemento_id)
+            elem = db.execute("SELECT * FROM elementos_proyecto WHERE id = ? AND proyecto_id = ?", (elem_id_int, proyecto_id)).fetchone()
+            if elem:
+                tipologia = elem["codigo"]
+        except ValueError:
+            pass
 
     codigo = f"{acronimo}-{modulo}-{revision}-{tipo_doc}-{tipologia}-{version}"
 
     try:
         db.execute(
             """INSERT INTO documentos
-            (proyecto_id, codigo_completo, acronimo, modulo, tipo_documento,
+            (proyecto_id, elemento_id, codigo_completo, acronimo, modulo, tipo_documento,
              tipologia, revision, version, titulo, ruta_fisica, fecha_registro)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
-            (proyecto_id, codigo, acronimo, modulo, tipo_doc, tipologia, revision, version, titulo, ruta, now_chile())
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""",
+            (proyecto_id, elem_id_int, codigo, acronimo, modulo, tipo_doc, tipologia, revision, version, titulo, ruta, now_chile())
         )
         db.commit()
         doc = db.execute("SELECT id FROM documentos WHERE codigo_completo = ?", (codigo,)).fetchone()

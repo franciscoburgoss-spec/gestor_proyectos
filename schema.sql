@@ -33,10 +33,22 @@ CREATE TABLE IF NOT EXISTS proyectos (
     notas TEXT
 );
 
+-- Tabla de elementos del proyecto (tipologías, obras complementarias, infraestructura)
+CREATE TABLE IF NOT EXISTS elementos_proyecto (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    proyecto_id INTEGER NOT NULL,
+    codigo TEXT NOT NULL,
+    nombre TEXT NOT NULL,
+    tipo TEXT NOT NULL DEFAULT 'obra_complementaria',
+    orden INTEGER DEFAULT 0,
+    FOREIGN KEY (proyecto_id) REFERENCES proyectos(id)
+);
+
 -- Tabla de documentos
 CREATE TABLE IF NOT EXISTS documentos (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     proyecto_id INTEGER NOT NULL,
+    elemento_id INTEGER,
     codigo_completo TEXT NOT NULL UNIQUE,
     acronimo TEXT NOT NULL,
     modulo TEXT NOT NULL,
@@ -118,6 +130,7 @@ CREATE TABLE IF NOT EXISTS documentos_eliminados (
 );
 
 -- Índices para performance
+CREATE INDEX IF NOT EXISTS idx_elem_proyecto ON elementos_proyecto(proyecto_id);
 CREATE INDEX IF NOT EXISTS idx_doc_proyecto ON documentos(proyecto_id);
 CREATE INDEX IF NOT EXISTS idx_doc_estado ON documentos(estado);
 CREATE INDEX IF NOT EXISTS idx_sol_proyecto ON solicitudes(proyecto_id);

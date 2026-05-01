@@ -443,6 +443,28 @@ code {
     margin-top: 30px;
 }
 
+/* Badges de tipos de elementos */
+.badge.tipologia {
+    background: #dbeafe;
+    color: #1e40af;
+}
+
+.badge.global {
+    background: #f3f4f6;
+    color: #4b5563;
+    border: 1px solid #d1d5db;
+}
+
+.badge.obra_complementaria {
+    background: #fef3c7;
+    color: #92400e;
+}
+
+.badge.infraestructura {
+    background: #fce7f3;
+    color: #9d174d;
+}
+
 /* Responsive */
 @media (max-width: 768px) {
     .grid {
