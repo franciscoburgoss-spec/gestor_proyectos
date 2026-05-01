@@ -144,7 +144,7 @@ def migrate_db():
     # Migrar proyectos existentes: crear GLB automáticamente
     proyectos = db.execute("SELECT id FROM proyectos").fetchall()
     for p in proyectos:
-        pid = p["id"]
+        pid = p[0]
         tiene = db.execute(
             "SELECT COUNT(*) FROM elementos_proyecto WHERE proyecto_id = ?", (pid,)
         ).fetchone()[0]
@@ -160,7 +160,7 @@ def migrate_db():
             if elem:
                 db.execute(
                     "UPDATE documentos SET elemento_id = ? WHERE proyecto_id = ? AND elemento_id IS NULL",
-                    (elem["id"], pid)
+                    (elem[0], pid)
                 )
                 db.commit()
 
