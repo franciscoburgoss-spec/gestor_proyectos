@@ -6,6 +6,11 @@
     <h1>{{ proyecto.acronimo }} — {{ proyecto.nombre }}</h1>
     <div class="meta">
         <span class="badge {{ proyecto.estado_global }}">{{ proyecto.estado_global }}</span>
+        {% if proyecto.estado_flujo and proyecto.estado_flujo != 'sin_solicitud' %}
+            <span class="badge" style="background:#e3f2fd; color:#1565c0;">
+                {{ proyecto.estado_flujo.replace('en_','').upper() }}
+            </span>
+        {% endif %}
         <span class="mono">{{ proyecto.carpeta_raiz }}</span>
         <span>Creado: {{ proyecto.fecha_creacion[:10] }}</span>
     </div>
@@ -42,7 +47,7 @@
                 <div class="small" style="color:var(--muted);">Elementos</div>
                 <div style="display:flex; gap:0.3rem; flex-wrap:wrap; margin-top:2px;">
                     {% for e in elementos %}
-                        <span class="badge {{ e.tipo }}" title="{{ e.nombre }}">{{ e.codigo }}</span>
+                        <span class="badge {{ e.familia }}" title="{{ e.nombre }}">{{ e.codigo }}</span>
                     {% endfor %}
                 </div>
             </div>
@@ -108,13 +113,13 @@
         {% if documentos %}
         <table class="table compact">
             <thead>
-                <tr><th>Código</th><th>Elemento</th><th>Título</th><th>Estado</th><th></th></tr>
+                <tr><th>Código</th><th>Fam-Elemento</th><th>Título</th><th>Estado</th><th></th></tr>
             </thead>
             <tbody>
                 {% for d in documentos %}
                 <tr class="doc-{{ d.estado }}">
                     <td class="mono">{{ d.codigo_completo }}</td>
-                    <td><span class="badge {{ d.elem_codigo }}" title="{{ d.elem_nombre }}">{{ d.elem_codigo or d.tipologia }}</span></td>
+                    <td><span class="badge {{ d.familia }}" title="{{ d.familia }}-{{ d.elemento }}">{{ d.familia or 'GEN' }}-{{ d.elemento or 'PRO' }}</span></td>
                     <td>{{ d.titulo }}</td>
                     <td><span class="badge {{ d.estado }}">{{ d.estado }}</span></td>
                     <td><a href="{{ url_for('ver_documento', doc_id=d.id) }}" class="btn-sm">Ver</a></td>
@@ -173,6 +178,36 @@
         </table>
         {% else %}
         <p class="empty">Sin solicitudes registradas.</p>
+        {% endif %}
+    </section>
+
+    <!-- Actas -->
+    <section class="card">
+        <h2>Actas de revisión</h2>
+        {% if actas %}
+        <table class="table compact">
+            <thead>
+                <tr><th>Fecha</th><th>Tipo</th><th>Solicitud</th><th></th></tr>
+            </thead>
+            <tbody>
+                {% for a in actas %}
+                <tr>
+                    <td>{{ a.fecha_generacion[:10] }}</td>
+                    <td>{{ a.tipo }}</td>
+                    <td>
+                        {% if a.solicitud_id %}
+                            <a href="{{ url_for('ver_solicitud', sol_id=a.solicitud_id) }}">Ver solicitud</a>
+                        {% else %}
+                            —
+                        {% endif %}
+                    </td>
+                    <td><a href="{{ url_for('ver_acta', acta_id=a.id) }}" class="btn-sm">Ver acta</a></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <p class="empty">Sin actas registradas. Se generan automáticamente al completar una solicitud.</p>
         {% endif %}
     </section>
 

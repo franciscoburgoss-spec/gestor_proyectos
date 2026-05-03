@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}Acta #{{ acta.id }} - {{ proyecto.acronimo }}{% endblock %}
+{% block content %}
+
+<h1>Acta de Revisión #{{ acta.id }}</h1>
+<div class="meta">
+    <span><strong>{{ proyecto.acronimo }}</strong> — {{ proyecto.nombre }}</span>
+    {% if sol %}
+    <span>Solicitud: {{ sol.tipo }} #{{ sol.numero_iteracion }}</span>
+    {% endif %}
+    <span>Generada: {{ acta.fecha_generacion }}</span>
+</div>
+
+<div style="margin-top:1rem; margin-bottom:1rem;">
+    <a href="{{ url_for('descargar_acta', acta_id=acta.id) }}" class="btn-sm">📥 Descargar .md</a>
+    <a href="{{ url_for('ver_proyecto', proyecto_id=proyecto.id) }}" class="btn-sm">← Volver al proyecto</a>
+</div>
+
+<section class="card">
+    <div style="white-space: pre-wrap; font-family: var(--font-mono); line-height:1.6;">
+        {{ acta.contenido_resumen }}
+    </div>
+</section>
+
+{% endblock %}

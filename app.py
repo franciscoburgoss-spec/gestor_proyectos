@@ -49,6 +49,96 @@ def ascii_safe(text):
 
 
 # ──────────────────────────────────────────────────────────────
+# CONSTANTES DE DOMINIO
+# ──────────────────────────────────────────────────────────────
+
+# Familias permitidas por módulo (protección contra combinaciones sin sentido)
+MATRIZ_COMPATIBILIDAD = {
+    "EST": {"VIV", "REC", "OBR", "GEN"},
+    "MDS": {"TER", "GEN"},
+    "HAB": {"TER", "OBR", "REC", "GEN"},
+    "URB": {"URB", "GEN"},
+    "ADM": {"GEN"},
+}
+
+# Orden jerárquico de estados de flujo (para UI y lógica)
+ESTADOS_FLUJO_ORDEN = {
+    "sin_solicitud": 0,
+    "en_chk": 1,
+    "en_r01": 2,
+    "en_r02": 3,
+    "en_rex": 4,
+    "cerrado": 99,
+}
+
+
+def _actualizar_estado_flujo(proyecto_id, db):
+    """Recalcula y guarda el estado de flujo del proyecto según solicitudes activas."""
+    sol = db.execute(
+        """SELECT tipo FROM solicitudes 
+           WHERE proyecto_id = ? AND estado != 'completada'
+           ORDER BY CASE tipo 
+             WHEN 'REX' THEN 4 
+             WHEN 'R02' THEN 3 
+             WHEN 'R01' THEN 2 
+             WHEN 'CHK' THEN 1 
+             ELSE 0 
+           END DESC 
+           LIMIT 1""",
+        (proyecto_id,)
+    ).fetchone()
+    if sol:
+        nuevo = f"en_{sol['tipo'].lower()}"
+    else:
+        nuevo = "sin_solicitud"
+    db.execute(
+        "UPDATE proyectos SET estado_flujo = ? WHERE id = ?",
+        (nuevo, proyecto_id)
+    )
+    db.commit()
+
+
+def generar_acta_md(proyecto, sol, revisiones, docs_pendientes, resumen):
+    """Genera acta de revisión en Markdown."""
+    lines = [f"# Acta de Revisión: {proyecto['acronimo']}", ""]
+    lines.append(f"**Proyecto:** {proyecto['nombre']}  ")
+    lines.append(f"**Revisión:** {sol['tipo']} #{sol.get('numero_iteracion','')}  ")
+    lines.append(f"**Fecha:** {now_chile()[:10]}  ")
+    lines.append(f"**Comuna:** {proyecto.get('comuna','-')}  ")
+    lines.append("")
+    lines.append("## Resumen")
+    for k in ["aprobado", "observado", "rechazado", "pendiente"]:
+        lines.append(f"- **{k.capitalize()}:** {resumen.get(k,0)}")
+    lines.append("")
+    if revisiones:
+        lines.append("## Documentos Revisados")
+        lines.append("")
+        for r in revisiones:
+            lines.append(f"### {r['codigo_completo']} — {r['titulo']}")
+            lines.append(f"- **Resultado:** {r['resultado']}")
+            if r.get('comentarios'):
+                lines.append(f"- **Comentarios:** {r['comentarios']}")
+            lines.append("")
+    if docs_pendientes:
+        lines.append("## Documentos Pendientes de Revisión")
+        for d in docs_pendientes:
+            lines.append(f"- {d['codigo_completo']} — {d['titulo']}")
+        lines.append("")
+    lines.append("---")
+    lines.append("*Acta generada automáticamente por la Plataforma de Ingeniería*")
+    return "\n".join(lines)
+
+
+def guardar_acta(proyecto_id, sol_id, contenido_md, db):
+    """Guarda el acta en la tabla ACTAS."""
+    db.execute(
+        "INSERT INTO actas (proyecto_id, solicitud_id, tipo, contenido_resumen, fecha_generacion) VALUES (?,?,?,?,?)",
+        (proyecto_id, sol_id, "auto", contenido_md, now_chile())
+    )
+    db.commit()
+
+
+# ──────────────────────────────────────────────────────────────
 # CONFIGURACION
 # ──────────────────────────────────────────────────────────────
 BASE_DIR = Path(__file__).parent
@@ -100,70 +190,23 @@ def init_db():
     db.close()
 
 def migrate_db():
-    """Aplica migraciones simples para bases de datos existentes."""
+    """Migra columnas básicas de proyectos. Este release requiere RESET limpio
+    por cambio de esquema en documentos (familia+elemento). Borrar proyectos.db manualmente."""
     db = sqlite3.connect(str(DATABASE))
-
-    # Verificar si motivo_cierre existe en proyectos
     cols = db.execute("PRAGMA table_info(proyectos)").fetchall()
     col_names = [c[1] for c in cols]
     if "motivo_cierre" not in col_names:
         db.execute("ALTER TABLE proyectos ADD COLUMN motivo_cierre TEXT")
         db.commit()
-
-    # Verificar si comuna existe en proyectos
     if "comuna" not in col_names:
         db.execute("ALTER TABLE proyectos ADD COLUMN comuna TEXT")
         db.commit()
-
-    # Verificar si zona_sismica existe en proyectos
     if "zona_sismica" not in col_names:
         db.execute("ALTER TABLE proyectos ADD COLUMN zona_sismica INTEGER")
         db.commit()
-
-    # ── Migración: elementos del proyecto ──
-    db.execute("""
-        CREATE TABLE IF NOT EXISTS elementos_proyecto (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            proyecto_id INTEGER NOT NULL,
-            codigo TEXT NOT NULL,
-            nombre TEXT NOT NULL,
-            tipo TEXT NOT NULL DEFAULT 'obra_complementaria',
-            orden INTEGER DEFAULT 0,
-            FOREIGN KEY (proyecto_id) REFERENCES proyectos(id)
-        )
-    """)
-    db.execute("CREATE INDEX IF NOT EXISTS idx_elem_proyecto ON elementos_proyecto(proyecto_id)")
-    db.commit()
-
-    # Agregar elemento_id a documentos si no existe
-    doc_cols = [c[1] for c in db.execute("PRAGMA table_info(documentos)").fetchall()]
-    if "elemento_id" not in doc_cols:
-        db.execute("ALTER TABLE documentos ADD COLUMN elemento_id INTEGER")
+    if "estado_flujo" not in col_names:
+        db.execute("ALTER TABLE proyectos ADD COLUMN estado_flujo TEXT DEFAULT 'sin_solicitud'")
         db.commit()
-
-    # Migrar proyectos existentes: crear GLB automáticamente
-    proyectos = db.execute("SELECT id FROM proyectos").fetchall()
-    for p in proyectos:
-        pid = p[0]
-        tiene = db.execute(
-            "SELECT COUNT(*) FROM elementos_proyecto WHERE proyecto_id = ?", (pid,)
-        ).fetchone()[0]
-        if tiene == 0:
-            db.execute(
-                "INSERT INTO elementos_proyecto (proyecto_id, codigo, nombre, tipo, orden) VALUES (?, ?, ?, ?, ?)",
-                (pid, "GLB", "Elementos Globales", "global", 0)
-            )
-            db.commit()
-            elem = db.execute(
-                "SELECT id FROM elementos_proyecto WHERE proyecto_id = ? AND codigo = ?", (pid, "GLB")
-            ).fetchone()
-            if elem:
-                db.execute(
-                    "UPDATE documentos SET elemento_id = ? WHERE proyecto_id = ? AND elemento_id IS NULL",
-                    (elem[0], pid)
-                )
-                db.commit()
-
     db.close()
 
 # ──────────────────────────────────────────────────────────────
@@ -294,29 +337,32 @@ def crear_proyecto():
             for i in range(1, nt + 1):
                 cod = f"T{i:02d}"
                 db.execute(
-                    "INSERT INTO elementos_proyecto (proyecto_id, codigo, nombre, tipo, orden) VALUES (?,?,?,?,?)",
-                    (pid, cod, f"Tipología {i}", "tipologia", i)
+                    "INSERT INTO elementos_proyecto (proyecto_id, codigo, nombre, familia, orden) VALUES (?,?,?,?,?)",
+                    (pid, cod, f"Tipología {i}", "VIV", i)
                 )
 
-        # 2. Elemento GLB siempre presente
+        # 2. Elemento PRO (General) siempre presente
         db.execute(
-            "INSERT INTO elementos_proyecto (proyecto_id, codigo, nombre, tipo, orden) VALUES (?,?,?,?,?)",
-            (pid, "GLB", "Elementos Globales", "global", 999)
+            "INSERT INTO elementos_proyecto (proyecto_id, codigo, nombre, familia, orden) VALUES (?,?,?,?,?)",
+            (pid, "PRO", "Proyecto General", "GEN", 999)
         )
 
-        # 3. Elementos complementarios opcionales (nombre1:codigo1,nombre2:codigo2)
+        # 3. Elementos complementarios opcionales
+        # Formato: nombre:código  o  nombre:código:familia
+        # Familia por defecto: OBR
         extras = request.form.get("elementos_extra", "").strip()
         if extras:
             for item in extras.split(","):
                 item = item.strip()
                 if ":" in item:
-                    nombre_elem, codigo_elem = item.split(":", 1)
-                    nombre_elem = nombre_elem.strip()
-                    codigo_elem = codigo_elem.strip().upper()
+                    partes = item.split(":")
+                    nombre_elem = partes[0].strip()
+                    codigo_elem = partes[1].strip().upper()
+                    familia_elem = partes[2].strip().upper() if len(partes) > 2 else "OBR"
                     if nombre_elem and codigo_elem:
                         db.execute(
-                            "INSERT INTO elementos_proyecto (proyecto_id, codigo, nombre, tipo, orden) VALUES (?,?,?,?,?)",
-                            (pid, codigo_elem, nombre_elem, "obra_complementaria", 100)
+                            "INSERT INTO elementos_proyecto (proyecto_id, codigo, nombre, familia, orden) VALUES (?,?,?,?,?)",
+                            (pid, codigo_elem, nombre_elem, familia_elem, 100)
                         )
 
         db.commit()
@@ -397,9 +443,10 @@ def editar_proyecto(proyecto_id):
             for item in nuevos_elementos.split(","):
                 item = item.strip()
                 if ":" in item:
-                    nombre_elem, codigo_elem = item.split(":", 1)
-                    nombre_elem = nombre_elem.strip()
-                    codigo_elem = codigo_elem.strip().upper()
+                    partes = item.split(":")
+                    nombre_elem = partes[0].strip()
+                    codigo_elem = partes[1].strip().upper()
+                    familia_elem = partes[2].strip().upper() if len(partes) > 2 else "OBR"
                     if nombre_elem and codigo_elem:
                         # Verificar que no exista ya
                         existe = db.execute(
@@ -408,8 +455,8 @@ def editar_proyecto(proyecto_id):
                         ).fetchone()
                         if not existe:
                             db.execute(
-                                "INSERT INTO elementos_proyecto (proyecto_id, codigo, nombre, tipo, orden) VALUES (?,?,?,?,?)",
-                                (proyecto_id, codigo_elem, nombre_elem, "obra_complementaria", 100)
+                                "INSERT INTO elementos_proyecto (proyecto_id, codigo, nombre, familia, orden) VALUES (?,?,?,?,?)",
+                                (proyecto_id, codigo_elem, nombre_elem, familia_elem, 100)
                             )
                             cambios.append(f"elemento agregado: {codigo_elem} ({nombre_elem})")
 
@@ -468,11 +515,16 @@ def ver_proyecto(proyecto_id):
     config_modulos = db.execute("SELECT * FROM config_modulos WHERE activo = 1 ORDER BY codigo").fetchall()
     config_tipos = db.execute("SELECT * FROM config_tipos_documento WHERE activo = 1 ORDER BY codigo").fetchall()
 
+    actas = db.execute(
+        "SELECT * FROM actas WHERE proyecto_id = ? ORDER BY fecha_generacion DESC",
+        (proyecto_id,)
+    ).fetchall()
+
     return render_template("proyecto.html", proyecto=proyecto, documentos=documentos,
                            solicitudes=solicitudes, resumen=resumen,
                            config_modulos=config_modulos, config_tipos=config_tipos,
-                           elementos=elementos,
-                           num_tipologias=len([e for e in elementos if e["tipo"] == "tipologia"]))
+                           elementos=elementos, actas=actas,
+                           num_tipologias=len([e for e in elementos if e["familia"] == "VIV"]))
 
 @app.route("/proyecto/<int:proyecto_id>/cerrar", methods=["POST"])
 def cerrar_proyecto(proyecto_id):
@@ -511,27 +563,38 @@ def crear_documento():
     titulo = request.form["titulo"].strip()
     ruta = request.form.get("ruta_fisica", "").strip()
 
-    # Resolver elemento
-    tipologia = "GLB"
+    # Resolver elemento (familia + código)
+    familia = "GEN"
+    elemento = "PRO"
     elem_id_int = None
     if elemento_id:
         try:
             elem_id_int = int(elemento_id)
             elem = db.execute("SELECT * FROM elementos_proyecto WHERE id = ? AND proyecto_id = ?", (elem_id_int, proyecto_id)).fetchone()
             if elem:
-                tipologia = elem["codigo"]
+                familia = elem["familia"]
+                elemento = elem["codigo"]
         except ValueError:
             pass
 
-    codigo = f"{acronimo}-{modulo}-{revision}-{tipo_doc}-{tipologia}-{version}"
+    # Validar matriz de compatibilidad módulo-familia
+    familias_permitidas = MATRIZ_COMPATIBILIDAD.get(modulo)
+    if familias_permitidas and familia not in familias_permitidas:
+        flash(
+            f"Combinación inválida: el módulo {modulo} no admite la familia {familia}. "
+            f"Familias permitidas: {', '.join(sorted(familias_permitidas))}", "err"
+        )
+        return redirect(url_for("ver_proyecto", proyecto_id=proyecto_id))
+
+    codigo = f"{acronimo}-{modulo}-{familia}-{elemento}-{tipo_doc}-{revision}-{version}"
 
     try:
         db.execute(
             """INSERT INTO documentos
-            (proyecto_id, elemento_id, codigo_completo, acronimo, modulo, tipo_documento,
-             tipologia, revision, version, titulo, ruta_fisica, fecha_registro)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""",
-            (proyecto_id, elem_id_int, codigo, acronimo, modulo, tipo_doc, tipologia, revision, version, titulo, ruta, now_chile())
+            (proyecto_id, elemento_id, codigo_completo, acronimo, modulo, familia, elemento,
+             tipo_documento, revision, version, titulo, ruta_fisica, fecha_registro)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+            (proyecto_id, elem_id_int, codigo, acronimo, modulo, familia, elemento, tipo_doc, revision, version, titulo, ruta, now_chile())
         )
         db.commit()
         doc = db.execute("SELECT id FROM documentos WHERE codigo_completo = ?", (codigo,)).fetchone()
@@ -567,6 +630,16 @@ def ver_documento(doc_id):
     return render_template("documento.html", doc=doc, proyecto=proyecto, historial=historial, revisiones=revisiones)
 
 
+
+@app.route("/documento/<int:doc_id>/copiar_nombre")
+def copiar_nombre_documento(doc_id):
+    """Devuelve el nombre sugerido del documento para copiar al portapapeles."""
+    db = get_db()
+    doc = db.execute("SELECT * FROM documentos WHERE id = ?", (doc_id,)).fetchone()
+    if not doc:
+        return {"error": "Documento no encontrado"}, 404
+    nombre_sugerido = f"{doc['codigo_completo']}"
+    return {"nombre_sugerido": nombre_sugerido, "codigo_completo": doc["codigo_completo"], "titulo": doc["titulo"]}, 200
 
 @app.route("/documento/<int:doc_id>/titulo", methods=["POST"])
 def cambiar_titulo(doc_id):
@@ -667,6 +740,9 @@ def crear_solicitud():
         (proyecto_id, "creacion", f"Solicitud {tipo} #{iteracion} registrada", now_chile())
     )
     db.commit()
+
+    # Actualizar estado de flujo
+    _actualizar_estado_flujo(proyecto_id, db)
 
     flash(f"Solicitud {tipo} registrada", "ok")
     return redirect(url_for("ver_proyecto", proyecto_id=proyecto_id))
@@ -774,9 +850,45 @@ def ver_solicitud(sol_id):
     for r in revisiones:
         resumen[r["resultado"]] = resumen.get(r["resultado"], 0) + 1
 
+    # Buscar acta generada para esta solicitud
+    acta = db.execute(
+        "SELECT * FROM actas WHERE solicitud_id = ? ORDER BY fecha_generacion DESC LIMIT 1",
+        (sol_id,)
+    ).fetchone()
+
     return render_template("solicitud.html", sol=sol, proyecto=proyecto,
                            revisiones=revisiones, docs_pendientes=docs_pendientes,
-                           resumen=resumen)
+                           resumen=resumen, acta=acta)
+
+
+@app.route("/acta/<int:acta_id>")
+def ver_acta(acta_id):
+    db = get_db()
+    acta = db.execute("SELECT * FROM actas WHERE id = ?", (acta_id,)).fetchone()
+    if not acta:
+        flash("Acta no encontrada", "err")
+        return redirect(url_for("index"))
+    proyecto = db.execute("SELECT * FROM proyectos WHERE id = ?", (acta["proyecto_id"],)).fetchone()
+    sol = db.execute("SELECT * FROM solicitudes WHERE id = ?", (acta["solicitud_id"],)).fetchone()
+    return render_template("acta.html", acta=acta, proyecto=proyecto, sol=sol)
+
+
+@app.route("/acta/<int:acta_id>/descargar")
+def descargar_acta(acta_id):
+    db = get_db()
+    acta = db.execute("SELECT * FROM actas WHERE id = ?", (acta_id,)).fetchone()
+    if not acta:
+        flash("Acta no encontrada", "err")
+        return redirect(url_for("index"))
+    contenido = acta["contenido_resumen"] or ""
+    buffer = io.BytesIO(contenido.encode("utf-8"))
+    buffer.seek(0)
+    return send_file(
+        buffer,
+        mimetype="text/markdown",
+        as_attachment=True,
+        download_name=f"acta_{acta['id']}.md"
+    )
 
 
 @app.route("/solicitud/<int:sol_id>/revisar")
@@ -871,17 +983,30 @@ def completar_solicitud(sol_id):
         flash("Solicitud no encontrada", "err")
         return redirect(url_for("index"))
 
+    proyecto = db.execute("SELECT * FROM proyectos WHERE id = ?", (sol["proyecto_id"],)).fetchone()
+
     # Verificar si quedan documentos sin revisar
     pendientes = db.execute("""
-        SELECT COUNT(*) as c FROM documentos d
+        SELECT * FROM documentos d
         WHERE d.proyecto_id = ? AND d.activo = 1 AND d.estado != 'aprobado'
         AND d.id NOT IN (
             SELECT documento_id FROM revisiones_aplicadas WHERE solicitud_id = ?
         )
-    """, (sol["proyecto_id"], sol_id)).fetchone()["c"]
+    """, (sol["proyecto_id"], sol_id)).fetchall()
 
-    if pendientes > 0:
-        flash(f"Atención: quedan {pendientes} documento(s) sin revisar. Se completó igual.", "ok")
+    revisiones = db.execute("""
+        SELECT ra.*, d.codigo_completo, d.titulo 
+        FROM revisiones_aplicadas ra
+        JOIN documentos d ON ra.documento_id = d.id
+        WHERE ra.solicitud_id = ?
+    """, (sol_id,)).fetchall()
+
+    resumen = {"aprobado": 0, "observado": 0, "rechazado": 0, "pendiente": len(pendientes)}
+    for r in revisiones:
+        resumen[r["resultado"]] = resumen.get(r["resultado"], 0) + 1
+
+    if pendientes:
+        flash(f"Atención: quedan {len(pendientes)} documento(s) sin revisar. Se completó igual.", "ok")
     else:
         flash("Solicitud completada", "ok")
 
@@ -896,7 +1021,15 @@ def completar_solicitud(sol_id):
         (sol["proyecto_id"], sol_id, "completar",
          f"Solicitud {sol['tipo']} #{sol['numero_iteracion']} completada", now_chile())
     )
-    db.commit()
+
+    # Actualizar estado de flujo
+    _actualizar_estado_flujo(sol["proyecto_id"], db)
+
+    # Generar acta automática
+    contenido_acta = generar_acta_md(proyecto, sol, revisiones, pendientes, resumen)
+    guardar_acta(sol["proyecto_id"], sol_id, contenido_acta, db)
+
+    flash("Acta de revisión generada automáticamente", "ok")
 
     return redirect(url_for("ver_solicitud", sol_id=sol_id))
 
@@ -1388,13 +1521,13 @@ def repositorio_md(proyecto_id):
 
 ## Índice de Documentos
 
-| Código | Módulo | Tipo | Tipología | Versión | Título | Estado | Ubicación Física |
-|--------|--------|------|-----------|---------|--------|--------|------------------|
+| Código | Módulo | Tipo | Familia | Elemento | Versión | Título | Estado | Ubicación Física |
+|--------|--------|------|---------|----------|---------|--------|--------|------------------|
 """
 
     for d in documentos:
         ruta = d['ruta_fisica'] or '-'
-        md += f"| {d['codigo_completo']} | {d['modulo']} | {d['tipo_documento']} | {d['tipologia']} | {d['version']} | {d['titulo']} | {d['estado']} | `{ruta}` |\n"
+        md += f"| {d['codigo_completo']} | {d['modulo']} | {d['tipo_documento']} | {d['familia']} | {d['elemento']} | {d['version']} | {d['titulo']} | {d['estado']} | `{ruta}` |\n"
 
     md += f"\n**Total documentos:** {len(documentos)}\n"
     md += f"\n---\n*Repositorio generado automáticamente desde la plataforma*\n"

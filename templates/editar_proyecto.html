@@ -47,8 +47,8 @@
 
         <div class="form-group">
             <label for="nuevos_elementos">Agregar elementos del proyecto</label>
-            <input type="text" id="nuevos_elementos" name="nuevos_elementos" placeholder="nombre:código, nombre:código (ej: Sede Social:SMU, Muros:MUR)">
-            <p class="help-text">Solo agrega. Los elementos existentes se muestran abajo. Para eliminar, contacta a Schema 😊</p>
+            <input type="text" id="nuevos_elementos" name="nuevos_elementos" placeholder="nombre:código:familia (ej: Sede Social:SMU:REC, Muros:MUR:OBR). Familia por defecto: OBR">
+            <p class="help-text">Solo agrega. Los elementos existentes se muestran abajo. Para eliminar, contacta a Schema 😊. Familias: VIV, REC, TER, OBR, URB, GEN.</p>
         </div>
 
         <div class="form-actions">
@@ -63,14 +63,14 @@
     <h2>Elementos del proyecto</h2>
     <table class="table compact">
         <thead>
-            <tr><th>Código</th><th>Nombre</th><th>Tipo</th></tr>
+            <tr><th>Código</th><th>Nombre</th><th>Familia</th></tr>
         </thead>
         <tbody>
             {% for e in elementos %}
             <tr>
                 <td class="mono">{{ e.codigo }}</td>
                 <td>{{ e.nombre }}</td>
-                <td><span class="badge {{ e.tipo }}">{{ e.tipo }}</span></td>
+                <td><span class="badge {{ e.familia }}">{{ e.familia }}</span></td>
             </tr>
             {% endfor %}
         </tbody>

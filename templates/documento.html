@@ -6,7 +6,7 @@
     <h1 class="mono">{{ doc.codigo_completo }}</h1>
     <div class="meta">
         <span class="badge {{ doc.estado }}">{{ doc.estado }}</span>
-        <span>{{ doc.modulo }} | {{ doc.tipo_documento }} | {{ doc.tipologia }}</span>
+        <span>{{ doc.modulo }} | {{ doc.tipo_documento }} | {{ doc.familia }}-{{ doc.elemento }}</span>
     </div>
 </header>
 
@@ -19,6 +19,12 @@
             <input type="text" name="titulo" value="{{ doc.titulo }}">
             <button type="submit">Actualizar título</button>
         </form>
+
+        <div class="info-row">
+            <span class="label">Nombre de archivo sugerido:</span>
+            <code class="mono" id="nombre-sugerido">{{ doc.codigo_completo }}</code>
+            <button type="button" class="btn-sm" style="margin-left:8px;" onclick="navigator.clipboard.writeText('{{ doc.codigo_completo }}').then(()=>alert('Nombre copiado: {{ doc.codigo_completo }}'))">Copiar</button>
+        </div>
 
         <div class="info-row">
             <span class="label">Revisión:</span> {{ doc.revision }}

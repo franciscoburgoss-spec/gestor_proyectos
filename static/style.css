@@ -443,26 +443,36 @@ code {
     margin-top: 30px;
 }
 
-/* Badges de tipos de elementos */
-.badge.tipologia {
+/* Badges de familias de elementos */
+.badge.VIV {
     background: #dbeafe;
     color: #1e40af;
 }
 
-.badge.global {
-    background: #f3f4f6;
-    color: #4b5563;
-    border: 1px solid #d1d5db;
-}
-
-.badge.obra_complementaria {
+.badge.REC {
     background: #fef3c7;
     color: #92400e;
 }
 
-.badge.infraestructura {
+.badge.TER {
+    background: #f3e8ff;
+    color: #6b21a8;
+}
+
+.badge.OBR {
+    background: #ffedd5;
+    color: #9a3412;
+}
+
+.badge.URB {
     background: #fce7f3;
     color: #9d174d;
+}
+
+.badge.GEN {
+    background: #f3f4f6;
+    color: #4b5563;
+    border: 1px solid #d1d5db;
 }
 
 /* Responsive */

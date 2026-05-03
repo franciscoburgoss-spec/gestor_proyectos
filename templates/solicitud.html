@@ -44,6 +44,9 @@
 {% else %}
 <div style="margin-bottom:20px; display:flex; gap:10px; align-items:center;">
     <span class="badge completada">Solicitud completada</span>
+    {% if acta %}
+        <a href="{{ url_for('ver_acta', acta_id=acta.id) }}" class="btn-sm">📋 Ver acta</a>
+    {% endif %}
     <a href="{{ url_for('generar_email', sol_id=sol.id) }}" class="btn" style="background:#6c757d;">✉ Generar correo</a>
 </div>
 {% endif %}
