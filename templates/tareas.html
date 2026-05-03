@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+{% block title %}Tareas{% endblock %}
+{% block content %}
+
+<h1>Tareas</h1>
+
+<div class="card">
+    <h2>Nueva tarea</h2>
+    <form method="post" action="{{ url_for('tareas') }}" class="form-inline">
+        <div>
+            <label>Asunto</label>
+            <input type="text" name="asunto" placeholder="Ej: Revisar bases de licitación" required>
+        </div>
+        <div>
+            <label>Fecha solicitud</label>
+            <input type="date" name="fecha_solicitud" value="{{ hoy }}" required>
+        </div>
+        <div>
+            <label>Fecha límite (opcional)</label>
+            <input type="date" name="fecha_limite">
+        </div>
+        <div>
+            <label>Notas</label>
+            <input type="text" name="notas" placeholder="Opcional">
+        </div>
+        <div style="display:flex;align-items:flex-end;">
+            <button type="submit">Crear tarea</button>
+        </div>
+    </form>
+</div>
+
+<div class="card">
+    <div class="row" style="justify-content:space-between;align-items:center;margin-bottom:14px;">
+        <h2 style="margin:0;">Listado</h2>
+        <div class="filtros">
+            <a href="{{ url_for('tareas', filtro='todas') }}" class="badge {% if filtro == 'todas' %}en_revision{% else %}recibida{% endif %}">Todas</a>
+            <a href="{{ url_for('tareas', filtro='pendientes') }}" class="badge {% if filtro == 'pendientes' %}en_revision{% else %}recibida{% endif %}">Pendientes</a>
+            <a href="{{ url_for('tareas', filtro='completadas') }}" class="badge {% if filtro == 'completadas' %}en_revision{% else %}recibida{% endif %}">Completadas</a>
+        </div>
+    </div>
+
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Asunto</th>
+                <th>Solicitud</th>
+                <th>Límite</th>
+                <th>Estado</th>
+                <th>Notas</th>
+                <th style="text-align:right;">Acciones</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for t in tareas %}
+            <tr>
+                <td>{{ t.asunto }}</td>
+                <td>{{ t.fecha_solicitud }}</td>
+                <td>{{ t.fecha_limite or '-' }}</td>
+                <td>
+                    {% if t.estado == 'pendiente' %}
+                        <span class="badge observado">Pendiente</span>
+                    {% elif t.estado == 'en_progreso' %}
+                        <span class="badge en_revision">En progreso</span>
+                    {% else %}
+                        <span class="badge aprobado">Completada</span>
+                    {% endif %}
+                </td>
+                <td>{{ t.notas or '-' }}</td>
+                <td style="text-align:right;">
+                    <form method="post" action="{{ url_for('cambiar_estado_tarea', tarea_id=t.id) }}" style="display:inline;">
+                        {% if t.estado == 'pendiente' %}
+                            <input type="hidden" name="estado" value="en_progreso">
+                            <button type="submit" style="padding:4px 8px;font-size:12px;background:var(--warning);">Iniciar</button>
+                        {% elif t.estado == 'en_progreso' %}
+                            <input type="hidden" name="estado" value="completada">
+                            <button type="submit" style="padding:4px 8px;font-size:12px;background:var(--success);">Completar</button>
+                        {% else %}
+                            <input type="hidden" name="estado" value="pendiente">
+                            <button type="submit" style="padding:4px 8px;font-size:12px;background:var(--text-muted);">Reactivar</button>
+                        {% endif %}
+                    </form>
+                    <form method="post" action="{{ url_for('eliminar_tarea', tarea_id=t.id) }}" style="display:inline;" onsubmit="return confirm('¿Eliminar esta tarea?')">
+                        <button type="submit" class="btn-danger" style="padding:4px 8px;font-size:12px;">×</button>
+                    </form>
+                </td>
+            </tr>
+            {% else %}
+            <tr>
+                <td colspan="6" style="color:var(--text-muted);text-align:center;">No hay tareas registradas.</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+{% endblock %}

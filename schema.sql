@@ -1,5 +1,6 @@
 -- Esquema completo de base de datos
 -- Plataforma de seguimiento de proyectos de ingeniería
+-- Nomenclatura: PROY-MOD-FAM-ELEM-TIPO-REV-VER
 
 PRAGMA foreign_keys = ON;
 
@@ -24,6 +25,7 @@ CREATE TABLE IF NOT EXISTS proyectos (
     acronimo TEXT NOT NULL UNIQUE,
     nombre TEXT NOT NULL,
     estado_global TEXT DEFAULT 'activo',
+    estado_flujo TEXT DEFAULT 'sin_solicitud',
     carpeta_raiz TEXT NOT NULL,
     comuna TEXT,
     zona_sismica INTEGER,
@@ -33,18 +35,20 @@ CREATE TABLE IF NOT EXISTS proyectos (
     notas TEXT
 );
 
--- Tabla de elementos del proyecto (tipologías, obras complementarias, infraestructura)
+-- Tabla de elementos del proyecto
 CREATE TABLE IF NOT EXISTS elementos_proyecto (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     proyecto_id INTEGER NOT NULL,
     codigo TEXT NOT NULL,
     nombre TEXT NOT NULL,
-    tipo TEXT NOT NULL DEFAULT 'obra_complementaria',
+    familia TEXT NOT NULL DEFAULT 'OBR',
     orden INTEGER DEFAULT 0,
-    FOREIGN KEY (proyecto_id) REFERENCES proyectos(id)
+    FOREIGN KEY (proyecto_id) REFERENCES proyectos(id),
+    CHECK (familia IN ('VIV', 'REC', 'TER', 'OBR', 'URB', 'GEN'))
 );
 
 -- Tabla de documentos
+-- Nomenclatura: PROY-MOD-FAM-ELEM-TIPO-REV-VER
 CREATE TABLE IF NOT EXISTS documentos (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     proyecto_id INTEGER NOT NULL,
@@ -52,8 +56,9 @@ CREATE TABLE IF NOT EXISTS documentos (
     codigo_completo TEXT NOT NULL UNIQUE,
     acronimo TEXT NOT NULL,
     modulo TEXT NOT NULL,
+    familia TEXT NOT NULL,
+    elemento TEXT NOT NULL,
     tipo_documento TEXT NOT NULL,
-    tipologia TEXT NOT NULL,
     revision TEXT NOT NULL,
     version TEXT NOT NULL,
     titulo TEXT NOT NULL,
@@ -61,7 +66,8 @@ CREATE TABLE IF NOT EXISTS documentos (
     ruta_fisica TEXT,
     fecha_registro TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     activo INTEGER DEFAULT 1,
-    FOREIGN KEY (proyecto_id) REFERENCES proyectos(id)
+    FOREIGN KEY (proyecto_id) REFERENCES proyectos(id),
+    FOREIGN KEY (elemento_id) REFERENCES elementos_proyecto(id) ON DELETE RESTRICT
 );
 
 -- Tabla de solicitudes (emails/entradas)
@@ -129,6 +135,30 @@ CREATE TABLE IF NOT EXISTS documentos_eliminados (
     FOREIGN KEY (proyecto_id) REFERENCES proyectos(id)
 );
 
+-- Tabla de tareas (independientes de proyectos)
+CREATE TABLE IF NOT EXISTS tareas (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    asunto TEXT NOT NULL,
+    fecha_solicitud DATE NOT NULL,
+    fecha_limite DATE,
+    estado TEXT DEFAULT 'pendiente',
+    notas TEXT,
+    fecha_creacion TIMESTAMP DEFAULT (datetime('now','localtime')),
+    fecha_completada TIMESTAMP,
+    CHECK (estado IN ('pendiente', 'en_progreso', 'completada'))
+);
+
+-- Tabla de jornada laboral
+CREATE TABLE IF NOT EXISTS jornada (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    fecha DATE NOT NULL UNIQUE,
+    entrada TIME,
+    salida TIME,
+    estado TEXT DEFAULT 'trabajado',
+    notas TEXT,
+    CHECK (estado IN ('trabajado', 'feriado', 'permiso'))
+);
+
 -- Índices para performance
 CREATE INDEX IF NOT EXISTS idx_elem_proyecto ON elementos_proyecto(proyecto_id);
 CREATE INDEX IF NOT EXISTS idx_doc_proyecto ON documentos(proyecto_id);
@@ -136,16 +166,21 @@ CREATE INDEX IF NOT EXISTS idx_doc_estado ON documentos(estado);
 CREATE INDEX IF NOT EXISTS idx_sol_proyecto ON solicitudes(proyecto_id);
 CREATE INDEX IF NOT EXISTS idx_hist_proyecto ON historial(proyecto_id);
 CREATE INDEX IF NOT EXISTS idx_hist_documento ON historial(documento_id);
+CREATE INDEX IF NOT EXISTS idx_tareas_estado ON tareas(estado);
+CREATE INDEX IF NOT EXISTS idx_jornada_fecha ON jornada(fecha);
 
 -- Datos iniciales de configuración
 INSERT OR IGNORE INTO config_modulos (codigo, nombre) VALUES
 ('EST', 'Estructuras'),
 ('MDS', 'Mecánica de Suelos'),
 ('HAB', 'Habilitación'),
-('URB', 'Urbanización');
+('URB', 'Urbanización'),
+('ADM', 'Administrativo');
 
 INSERT OR IGNORE INTO config_tipos_documento (codigo, nombre) VALUES
 ('MEM', 'Memoria de Cálculo'),
 ('PLN', 'Planimetría'),
 ('INF', 'Informes'),
-('ENS', 'Ensayos de Laboratorio');
+('ENS', 'Ensayos de Laboratorio'),
+('MHB', 'Memoria de Habilitación'),
+('LEG', 'Documentación Legal');

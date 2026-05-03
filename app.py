@@ -207,6 +207,35 @@ def migrate_db():
     if "estado_flujo" not in col_names:
         db.execute("ALTER TABLE proyectos ADD COLUMN estado_flujo TEXT DEFAULT 'sin_solicitud'")
         db.commit()
+
+    # Crear tablas nuevas si no existen (para migración sin reset)
+    db.execute("""
+        CREATE TABLE IF NOT EXISTS tareas (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            asunto TEXT NOT NULL,
+            fecha_solicitud DATE NOT NULL,
+            fecha_limite DATE,
+            estado TEXT DEFAULT 'pendiente',
+            notas TEXT,
+            fecha_creacion TIMESTAMP DEFAULT (datetime('now','localtime')),
+            fecha_completada TIMESTAMP,
+            CHECK (estado IN ('pendiente', 'en_progreso', 'completada'))
+        )
+    """)
+    db.execute("""
+        CREATE TABLE IF NOT EXISTS jornada (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            fecha DATE NOT NULL UNIQUE,
+            entrada TIME,
+            salida TIME,
+            estado TEXT DEFAULT 'trabajado',
+            notas TEXT,
+            CHECK (estado IN ('trabajado', 'feriado', 'permiso'))
+        )
+    """)
+    db.execute("CREATE INDEX IF NOT EXISTS idx_tareas_estado ON tareas(estado)")
+    db.execute("CREATE INDEX IF NOT EXISTS idx_jornada_fecha ON jornada(fecha)")
+    db.commit()
     db.close()
 
 # ──────────────────────────────────────────────────────────────
@@ -1565,6 +1594,292 @@ def backup():
         mimetype='application/zip',
         as_attachment=True,
         download_name=zip_name
+    )
+
+
+# ──────────────────────────────────────────────────────────────
+# TAREAS ( independientes de proyectos )
+# ──────────────────────────────────────────────────────────────
+
+@app.route("/tareas", methods=["GET", "POST"])
+def tareas():
+    db = get_db()
+    filtro = request.args.get("filtro", "todas")
+
+    if request.method == "POST":
+        asunto = request.form["asunto"].strip()
+        fecha_solicitud = request.form["fecha_solicitud"]
+        fecha_limite = request.form.get("fecha_limite") or None
+        notas = request.form.get("notas", "").strip()
+        db.execute(
+            "INSERT INTO tareas (asunto, fecha_solicitud, fecha_limite, estado, notas) VALUES (?,?,?,?,?)",
+            (asunto, fecha_solicitud, fecha_limite, "pendiente", notas)
+        )
+        db.commit()
+        flash("Tarea creada", "ok")
+        return redirect(url_for("tareas", filtro=filtro))
+
+    sql = "SELECT * FROM tareas"
+    if filtro == "pendientes":
+        sql += " WHERE estado IN ('pendiente', 'en_progreso')"
+    elif filtro == "completadas":
+        sql += " WHERE estado = 'completada'"
+    sql += " ORDER BY CASE estado WHEN 'pendiente' THEN 1 WHEN 'en_progreso' THEN 2 ELSE 3 END, fecha_limite ASC, fecha_solicitud DESC"
+    lista = db.execute(sql).fetchall()
+    hoy = now_chile()[:10]
+    return render_template("tareas.html", tareas=lista, filtro=filtro, hoy=hoy)
+
+
+@app.route("/tarea/<int:tarea_id>/estado", methods=["POST"])
+def cambiar_estado_tarea(tarea_id):
+    db = get_db()
+    estado = request.form["estado"]
+    if estado == "completada":
+        db.execute(
+            "UPDATE tareas SET estado = ?, fecha_completada = ? WHERE id = ?",
+            (estado, now_chile(), tarea_id)
+        )
+    else:
+        db.execute(
+            "UPDATE tareas SET estado = ?, fecha_completada = NULL WHERE id = ?",
+            (estado, tarea_id)
+        )
+    db.commit()
+    flash("Estado actualizado", "ok")
+    return redirect(url_for("tareas"))
+
+
+@app.route("/tarea/<int:tarea_id>/eliminar", methods=["POST"])
+def eliminar_tarea(tarea_id):
+    db = get_db()
+    db.execute("DELETE FROM tareas WHERE id = ?", (tarea_id,))
+    db.commit()
+    flash("Tarea eliminada", "ok")
+    return redirect(url_for("tareas"))
+
+
+# ──────────────────────────────────────────────────────────────
+# JORNADA LABORAL
+# ──────────────────────────────────────────────────────────────
+
+def _rango_semana(fecha_ref=None):
+    """Devuelve lunes y domingo de la semana de fecha_ref (default hoy)."""
+    if fecha_ref is None:
+        fecha_ref = datetime.now(TZ_CHILE).date()
+    lunes = fecha_ref - timedelta(days=fecha_ref.weekday())
+    domingo = lunes + timedelta(days=6)
+    return lunes, domingo
+
+
+@app.route("/jornada")
+def jornada():
+    db = get_db()
+    semana_offset = int(request.args.get("semana", 0))
+    hoy = datetime.now(TZ_CHILE).date()
+    lunes_ref = hoy + timedelta(weeks=semana_offset)
+    lunes, domingo = _rango_semana(lunes_ref)
+
+    # Traer registros de esta semana
+    registros_raw = db.execute(
+        "SELECT * FROM jornada WHERE fecha >= ? AND fecha <= ? ORDER BY fecha",
+        (lunes.isoformat(), domingo.isoformat())
+    ).fetchall()
+    registros = {r["fecha"]: r for r in registros_raw}
+
+    # Construir días
+    dias = []
+    nombres = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"]
+    for i in range(7):
+        fecha = lunes + timedelta(days=i)
+        r = registros.get(fecha.isoformat())
+        horas = ""
+        if r and r["entrada"] and r["salida"]:
+            try:
+                e = datetime.strptime(r["entrada"], "%H:%M")
+                s = datetime.strptime(r["salida"], "%H:%M")
+                diff = s - e
+                horas = f"{diff.seconds // 3600}h {(diff.seconds % 3600) // 60:02d}m"
+            except Exception:
+                horas = ""
+        dias.append({
+            "nombre": nombres[i],
+            "fecha": fecha,
+            "fecha_str": fecha.isoformat(),
+            "registro": r,
+            "horas": horas,
+            "es_hoy": fecha == hoy,
+        })
+
+    # Totales solo días hábiles (lun-vie)
+    total_seg = 0
+    for d in dias[:5]:
+        r = d["registro"]
+        if r and r["entrada"] and r["salida"]:
+            try:
+                e = datetime.strptime(r["entrada"], "%H:%M")
+                s = datetime.strptime(r["salida"], "%H:%M")
+                total_seg += (s - e).seconds
+            except Exception:
+                pass
+    total_horas = f"{total_seg // 3600}h {(total_seg % 3600) // 60:02d}m"
+
+    es_lunes_hoy = hoy.weekday() == 0
+    return render_template("jornada.html", dias=dias, total_horas=total_horas,
+                           lunes=lunes, domingo=domingo, semana_offset=semana_offset,
+                           es_lunes_hoy=es_lunes_hoy, hoy=hoy.isoformat())
+
+
+@app.route("/jornada/fichar", methods=["POST"])
+def fichar_jornada():
+    db = get_db()
+    fecha = request.form["fecha"]
+    accion = request.form["accion"]
+
+    reg = db.execute("SELECT * FROM jornada WHERE fecha = ?", (fecha,)).fetchone()
+
+    if accion == "entrada":
+        hora = now_chile()[11:16]  # HH:MM
+        if reg:
+            db.execute("UPDATE jornada SET entrada = ?, estado = 'trabajado' WHERE fecha = ?",
+                       (hora, fecha))
+        else:
+            db.execute("INSERT INTO jornada (fecha, entrada, estado) VALUES (?,?,?)",
+                       (fecha, hora, "trabajado"))
+        flash(f"Entrada registrada: {hora}", "ok")
+
+    elif accion == "salida":
+        hora = now_chile()[11:16]
+        if reg:
+            db.execute("UPDATE jornada SET salida = ?, estado = 'trabajado' WHERE fecha = ?",
+                       (hora, fecha))
+            flash(f"Salida registrada: {hora}", "ok")
+        else:
+            flash("No hay entrada registrada para este día", "err")
+
+    elif accion in ("feriado", "permiso"):
+        if reg:
+            db.execute("UPDATE jornada SET estado = ?, entrada = NULL, salida = NULL WHERE fecha = ?",
+                       (accion, fecha))
+        else:
+            db.execute("INSERT INTO jornada (fecha, estado) VALUES (?,?)",
+                       (fecha, accion))
+        flash(f"Día marcado como {accion}", "ok")
+
+    db.commit()
+    return redirect(url_for("jornada"))
+
+
+# ──────────────────────────────────────────────────────────────
+# REPORTE SEMANAL
+# ──────────────────────────────────────────────────────────────
+
+@app.route("/reporte/semanal")
+def reporte_semanal():
+    return render_template("reporte_semanal.html")
+
+
+@app.route("/reporte/semanal/generar")
+def generar_reporte_semanal():
+    db = get_db()
+    hoy = datetime.now(TZ_CHILE).date()
+    # Semana anterior (lunes a viernes)
+    lunes = hoy - timedelta(days=hoy.weekday() + 7)
+    viernes = lunes + timedelta(days=4)
+
+    # Jornada
+    jornada_raw = db.execute(
+        "SELECT * FROM jornada WHERE fecha >= ? AND fecha <= ? ORDER BY fecha",
+        (lunes.isoformat(), viernes.isoformat())
+    ).fetchall()
+
+    # Tareas completadas esa semana
+    tareas_raw = db.execute(
+        """SELECT * FROM tareas
+           WHERE estado = 'completada'
+           AND date(fecha_completada) >= ? AND date(fecha_completada) <= ?
+           ORDER BY fecha_completada""",
+        (lunes.isoformat(), viernes.isoformat())
+    ).fetchall()
+
+    # Solicitudes completadas esa semana
+    solicitudes_raw = db.execute(
+        """SELECT s.*, p.acronimo, p.nombre as proyecto_nombre
+           FROM solicitudes s
+           JOIN proyectos p ON s.proyecto_id = p.id
+           WHERE s.estado = 'completada'
+           AND date(s.fecha_cierre) >= ? AND date(s.fecha_cierre) <= ?
+           ORDER BY s.fecha_cierre""",
+        (lunes.isoformat(), viernes.isoformat())
+    ).fetchall()
+
+    nombres_dias = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes"]
+    lines = []
+    lines.append("REPORTE SEMANAL DE ACTIVIDADES")
+    lines.append(f"Semana del {lunes.strftime('%d/%m/%Y')} al {viernes.strftime('%d/%m/%Y')}")
+    lines.append("")
+
+    # Jornada
+    lines.append("JORNADA LABORAL:")
+    jornada_dict = {r["fecha"]: r for r in jornada_raw}
+    total_seg = 0
+    for i, nombre in enumerate(nombres_dias):
+        fecha = lunes + timedelta(days=i)
+        fecha_str = fecha.strftime("%d/%m/%Y")
+        r = jornada_dict.get(fecha.isoformat())
+        if r:
+            if r["estado"] == "feriado":
+                lines.append(f"{nombre} {fecha_str}: Feriado")
+            elif r["estado"] == "permiso":
+                lines.append(f"{nombre} {fecha_str}: Permiso administrativo")
+            elif r["entrada"] and r["salida"]:
+                e = datetime.strptime(r["entrada"], "%H:%M")
+                s = datetime.strptime(r["salida"], "%H:%M")
+                diff = s - e
+                total_seg += diff.seconds
+                lines.append(f"{nombre} {fecha_str}: {r['entrada']} - {r['salida']} ({diff.seconds // 3600}h {(diff.seconds % 3600) // 60:02d}m)")
+            elif r["entrada"]:
+                lines.append(f"{nombre} {fecha_str}: {r['entrada']} - [Sin salida]")
+            else:
+                lines.append(f"{nombre} {fecha_str}: Sin registro")
+        else:
+            lines.append(f"{nombre} {fecha_str}: Sin registro")
+    lines.append("")
+    lines.append(f"Total horas trabajadas: {total_seg // 3600}h {(total_seg % 3600) // 60:02d}m")
+    lines.append("")
+
+    # Tareas
+    lines.append("TAREAS COMPLETADAS:")
+    if tareas_raw:
+        for t in tareas_raw:
+            fc = t["fecha_completada"][:10] if t["fecha_completada"] else ""
+            lines.append(f"✓ {t['asunto']} ({fc})")
+    else:
+        lines.append("No hay tareas completadas esta semana.")
+    lines.append("")
+
+    # Proyectos revisados
+    lines.append("PROYECTOS REVISADOS:")
+    if solicitudes_raw:
+        for s in solicitudes_raw:
+            lines.append(f"• {s['acronimo']}: {s['tipo']} completada ({s['fecha_cierre'][:10]})")
+    else:
+        lines.append("No hay revisiones completadas esta semana.")
+    lines.append("")
+
+    lines.append("Saludos,")
+    lines.append("")
+    lines.append("Fran")
+
+    contenido = "\n".join(lines)
+    filename = f"reporte_semanal_{lunes.strftime('%Y%m%d')}.txt"
+    buffer = io.BytesIO(contenido.encode("utf-8"))
+    buffer.seek(0)
+
+    return send_file(
+        buffer,
+        mimetype="text/plain",
+        as_attachment=True,
+        download_name=filename
     )
 
 

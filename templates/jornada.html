@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+{% block title %}Jornada{% endblock %}
+{% block content %}
+
+<h1>Jornada Laboral</h1>
+
+{% if es_lunes_hoy %}
+<div class="card" style="border-color:#fbbf24;background:#fffbeb;">
+    <strong>📅 Es lunes.</strong> ¿Ya enviaste tu reporte semanal?
+    <a href="{{ url_for('reporte_semanal') }}" style="margin-left:10px;font-weight:600;color:var(--accent);">Generar reporte →</a>
+</div>
+{% endif %}
+
+<div class="card">
+    <div class="row" style="justify-content:space-between;align-items:center;margin-bottom:16px;">
+        <h2 style="margin:0;">Semana del {{ lunes.strftime('%d/%m') }} al {{ domingo.strftime('%d/%m/%Y') }}</h2>
+        <div>
+            <a href="{{ url_for('jornada', semana=semana_offset-1) }}" style="text-decoration:none;margin-right:10px;">← Semana anterior</a>
+            {% if semana_offset != 0 %}
+            <a href="{{ url_for('jornada', semana=0) }}" style="text-decoration:none;margin-right:10px;font-weight:600;">Hoy</a>
+            {% endif %}
+            <a href="{{ url_for('jornada', semana=semana_offset+1) }}" style="text-decoration:none;">Semana siguiente →</a>
+        </div>
+    </div>
+
+    <div class="jornada-grid">
+        {% for d in dias %}
+        <div class="dia-card {% if d.es_hoy %}hoy{% endif %}">
+            <div class="dia-header">
+                <strong>{{ d.nombre }}</strong>
+                <span class="dia-fecha">{{ d.fecha.strftime('%d/%m') }}</span>
+            </div>
+
+            {% if d.registro %}
+                {% if d.registro.estado == 'feriado' %}
+                    <div class="dia-estado feriado">Feriado</div>
+                {% elif d.registro.estado == 'permiso' %}
+                    <div class="dia-estado permiso">Permiso adm.</div>
+                {% else %}
+                    <div class="dia-horas">
+                        {% if d.registro.entrada %}
+                            <span>🟢 {{ d.registro.entrada }}</span>
+                        {% else %}
+                            <span>—</span>
+                        {% endif %}
+                        {% if d.registro.salida %}
+                            <span>🔴 {{ d.registro.salida }}</span>
+                        {% else %}
+                            <span>—</span>
+                        {% endif %}
+                    </div>
+                    {% if d.horas %}
+                        <div class="dia-total">{{ d.horas }}</div>
+                    {% endif %}
+                {% endif %}
+            {% else %}
+                <div class="dia-vacio">Sin registro</div>
+            {% endif %}
+
+            <div class="dia-actions">
+                {% if not d.registro or (d.registro.estado == 'trabajado' and not d.registro.entrada) %}
+                <form method="post" action="{{ url_for('fichar_jornada') }}" style="display:inline;">
+                    <input type="hidden" name="fecha" value="{{ d.fecha_str }}">
+                    <input type="hidden" name="accion" value="entrada">
+                    <button type="submit" style="padding:4px 10px;font-size:12px;">Entrada</button>
+                </form>
+                {% endif %}
+
+                {% if d.registro and d.registro.estado == 'trabajado' and d.registro.entrada and not d.registro.salida %}
+                <form method="post" action="{{ url_for('fichar_jornada') }}" style="display:inline;">
+                    <input type="hidden" name="fecha" value="{{ d.fecha_str }}">
+                    <input type="hidden" name="accion" value="salida">
+                    <button type="submit" style="padding:4px 10px;font-size:12px;background:var(--danger);">Salida</button>
+                </form>
+                {% endif %}
+
+                {% if not d.registro or d.registro.estado == 'trabajado' %}
+                <form method="post" action="{{ url_for('fichar_jornada') }}" style="display:inline;">
+                    <input type="hidden" name="fecha" value="{{ d.fecha_str }}">
+                    <input type="hidden" name="accion" value="feriado">
+                    <button type="submit" style="padding:4px 8px;font-size:11px;background:#6b7280;">Feriado</button>
+                </form>
+                <form method="post" action="{{ url_for('fichar_jornada') }}" style="display:inline;">
+                    <input type="hidden" name="fecha" value="{{ d.fecha_str }}">
+                    <input type="hidden" name="accion" value="permiso">
+                    <button type="submit" style="padding:4px 8px;font-size:11px;background:#8b5cf6;">Permiso</button>
+                </form>
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <div class="jornada-total">
+        Total horas (lun–vie): <strong>{{ total_horas }}</strong>
+    </div>
+</div>
+
+{% endblock %}

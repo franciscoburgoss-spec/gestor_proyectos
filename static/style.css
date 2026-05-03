@@ -487,4 +487,119 @@ code {
         flex-direction: column;
         gap: 10px;
     }
+    .jornada-grid {
+        grid-template-columns: 1fr !important;
+    }
 }
+
+/* ── Jornada ── */
+.jornada-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 10px;
+}
+
+.dia-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    min-height: 140px;
+}
+
+.dia-card.hoy {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px rgba(37,99,235,0.15);
+}
+
+.dia-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+    font-size: 13px;
+}
+
+.dia-fecha {
+    color: var(--text-muted);
+    font-size: 11px;
+}
+
+.dia-horas {
+    display: flex;
+    justify-content: space-between;
+    font-size: 12px;
+    margin: 4px 0;
+}
+
+.dia-total {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--accent);
+    margin-top: 4px;
+}
+
+.dia-estado.feriado {
+    color: #92400e;
+    font-weight: 600;
+    font-size: 13px;
+    margin-top: 8px;
+}
+
+.dia-estado.permiso {
+    color: #6b21a8;
+    font-weight: 600;
+    font-size: 13px;
+    margin-top: 8px;
+}
+
+.dia-vacio {
+    color: var(--text-muted);
+    font-size: 12px;
+    margin-top: 8px;
+    flex: 1;
+}
+
+.dia-actions {
+    margin-top: auto;
+    padding-top: 10px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+}
+
+.dia-actions form {
+    display: inline;
+    margin: 0;
+}
+
+.dia-actions button {
+    font-size: 11px;
+    padding: 4px 8px;
+}
+
+.jornada-total {
+    margin-top: 16px;
+    font-size: 14px;
+    color: var(--text-muted);
+    text-align: right;
+}
+
+/* ── Filtros tareas ── */
+.filtros {
+    display: flex;
+    gap: 6px;
+}
+
+.filtros a {
+    text-decoration: none;
+}
+
+/* ── Recordatorio lunes ── */
+.recordatorio-lunes {
+    border-color: #fbbf24;
+    background: #fffbeb;
+}
+
