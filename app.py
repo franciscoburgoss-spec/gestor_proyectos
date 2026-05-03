@@ -333,19 +333,11 @@ def crear_proyecto():
     nombre = request.form["nombre"].strip()
     carpeta = request.form["carpeta_raiz"].strip()
     comuna = request.form.get("comuna", "").strip()
-    zona = request.form.get("zona_sismica", "").strip()
     notas = request.form.get("notas", "").strip()
     num_tipologias = request.form.get("num_tipologias", "0").strip()
 
-    # Zona sísmica: prioridad al input directo, fallback a comunas.json
-    zona_sismica = None
-    if zona:
-        try:
-            zona_sismica = int(zona)
-        except ValueError:
-            zona_sismica = None
-    if zona_sismica is None and comuna:
-        zona_sismica = ZONAS.get(comuna, None)
+    # Zona sísmica: automática desde comunas.json según la comuna seleccionada
+    zona_sismica = ZONAS.get(comuna, None) if comuna else None
 
     try:
         db.execute(
@@ -370,29 +362,11 @@ def crear_proyecto():
                     (pid, cod, f"Tipología {i}", "VIV", i)
                 )
 
-        # 2. Elemento PRO (General) siempre presente
+        # 2. Elemento PRO (Proyecto General) siempre presente
         db.execute(
             "INSERT INTO elementos_proyecto (proyecto_id, codigo, nombre, familia, orden) VALUES (?,?,?,?,?)",
             (pid, "PRO", "Proyecto General", "GEN", 999)
         )
-
-        # 3. Elementos complementarios opcionales
-        # Formato: nombre:código  o  nombre:código:familia
-        # Familia por defecto: OBR
-        extras = request.form.get("elementos_extra", "").strip()
-        if extras:
-            for item in extras.split(","):
-                item = item.strip()
-                if ":" in item:
-                    partes = item.split(":")
-                    nombre_elem = partes[0].strip()
-                    codigo_elem = partes[1].strip().upper()
-                    familia_elem = partes[2].strip().upper() if len(partes) > 2 else "OBR"
-                    if nombre_elem and codigo_elem:
-                        db.execute(
-                            "INSERT INTO elementos_proyecto (proyecto_id, codigo, nombre, familia, orden) VALUES (?,?,?,?,?)",
-                            (pid, codigo_elem, nombre_elem, familia_elem, 100)
-                        )
 
         db.commit()
 
@@ -430,19 +404,10 @@ def editar_proyecto(proyecto_id):
         nombre = request.form["nombre"].strip()
         carpeta = request.form["carpeta_raiz"].strip()
         comuna = request.form.get("comuna", "").strip()
-        zona_raw = request.form.get("zona_sismica", "").strip()
         notas = request.form.get("notas", "").strip()
 
-        # Zona sísmica: input directo tiene prioridad
-        nueva_zona = None
-        if zona_raw:
-            try:
-                nueva_zona = int(zona_raw)
-            except ValueError:
-                nueva_zona = proyecto.get("zona_sismica")
-        else:
-            nueva_zona = proyecto.get("zona_sismica")
-
+        # Zona sísmica: automática desde comunas.json según la comuna
+        nueva_zona = ZONAS.get(comuna, None) if comuna else None
         zona_anterior = proyecto.get("zona_sismica")
 
         if not nombre or not carpeta:

@@ -85,11 +85,12 @@
                     <option value="{{ c }}">{{ c }}</option>
                 {% endfor %}
             </select>
-            <input type="number" name="zona_sismica" placeholder="Zona sísmica (ej: 2, 3)" min="1" max="4" style="min-width:160px;">
         </div>
         <div class="row">
-            <input type="number" name="num_tipologias" placeholder="N° tipologías (ej: 2)" min="0" max="20" value="0" style="min-width:140px;">
-            <input type="text" name="elementos_extra" placeholder="Elementos extra: nombre:código:familia (ej: Sede Social:SMU:REC, Muros:MUR:OBR). Familia por defecto: OBR" style="flex:2;">
+            <div style="flex:1;">
+                <label style="display:block;margin-bottom:4px;font-size:12px;color:var(--text-muted);">Número de tipologías de vivienda (0 si no aplica)</label>
+                <input type="number" name="num_tipologias" placeholder="Ej: 2" min="0" max="20" value="0" style="min-width:140px;">
+            </div>
         </div>
         <input type="text" name="notas" placeholder="Notas (opcional)">
         <button type="submit">Crear proyecto</button>

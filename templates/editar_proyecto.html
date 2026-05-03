@@ -32,11 +32,14 @@
                         <option value="{{ c }}" {% if proyecto.comuna == c %}selected{% endif %}>{{ c }}</option>
                     {% endfor %}
                 </select>
+                <p class="help-text">La zona sísmica se calcula automáticamente según la comuna seleccionada.</p>
             </div>
             <div class="form-group" style="flex:1;">
-                <label for="zona_sismica">Zona sísmica</label>
-                <input type="number" id="zona_sismica" name="zona_sismica" value="{{ proyecto.zona_sismica or '' }}" min="1" max="4" placeholder="Ej: 2">
-                <p class="help-text">Editable directamente. No depende solo de la comuna.</p>
+                <label>Zona sísmica</label>
+                <div style="padding:10px 0; font-weight:600; font-size:1.1rem;">
+                    {% if proyecto.zona_sismica %}Z{{ proyecto.zona_sismica }}{% else %}<span style="color:var(--text-muted);">—</span>{% endif %}
+                </div>
+                <p class="help-text">Dato derivado de la comuna. No editable manualmente.</p>
             </div>
         </div>
 
