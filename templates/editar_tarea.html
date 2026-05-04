@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block title %}Editar Tarea{% endblock %}
+{% block content %}
+
+<h1>Editar Tarea</h1>
+
+<div class="card">
+    <form method="post" action="{{ url_for('editar_tarea', tarea_id=tarea.id) }}" class="form-stacked">
+        <div class="form-group">
+            <label>Asunto</label>
+            <input type="text" name="asunto" value="{{ tarea.asunto }}" required>
+        </div>
+        <div class="row">
+            <div class="form-group" style="flex:1;">
+                <label>Fecha de solicitud</label>
+                <input type="date" name="fecha_solicitud" value="{{ tarea.fecha_solicitud }}" required>
+            </div>
+            <div class="form-group" style="flex:1;">
+                <label>Fecha límite (opcional)</label>
+                <input type="date" name="fecha_limite" value="{{ tarea.fecha_limite or '' }}">
+            </div>
+        </div>
+        <div class="form-group">
+            <label>Notas</label>
+            <textarea name="notas" rows="3">{{ tarea.notas or '' }}</textarea>
+        </div>
+        <div class="form-actions">
+            <button type="submit" class="btn">Guardar cambios</button>
+            <a href="{{ url_for('tareas') }}" class="btn btn-secondary">Cancelar</a>
+        </div>
+    </form>
+</div>
+
+{% endblock %}

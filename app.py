@@ -235,6 +235,36 @@ def migrate_db():
     """)
     db.execute("CREATE INDEX IF NOT EXISTS idx_tareas_estado ON tareas(estado)")
     db.execute("CREATE INDEX IF NOT EXISTS idx_jornada_fecha ON jornada(fecha)")
+    db.execute("""
+        CREATE TABLE IF NOT EXISTS catalogo_elementos (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            familia TEXT NOT NULL,
+            codigo TEXT NOT NULL,
+            nombre TEXT NOT NULL,
+            activo INTEGER DEFAULT 1,
+            UNIQUE(familia, codigo)
+        )
+    """)
+    db.execute("CREATE INDEX IF NOT EXISTS idx_catalogo_familia ON catalogo_elementos(familia)")
+    # Insertar catálogo inicial si está vacío
+    count = db.execute("SELECT COUNT(*) FROM catalogo_elementos").fetchone()[0]
+    if count == 0:
+        db.executescript("""
+            INSERT INTO catalogo_elementos (familia, codigo, nombre) VALUES
+            ('REC', 'SMU', 'Sede Social'),
+            ('REC', 'QUI', 'Quincho'),
+            ('REC', 'SAU', 'Sala de Usos Múltiples'),
+            ('OBR', 'MUR', 'Muros de Contención'),
+            ('OBR', 'EST', 'Estanques'),
+            ('OBR', 'BOD', 'Bodega'),
+            ('OBR', 'SAL', 'Sistema Alcantarillado'),
+            ('URB', 'VIA', 'Vías'),
+            ('URB', 'PAR', 'Parques / Áreas Verdes'),
+            ('URB', 'VER', 'Veredas / Aceras'),
+            ('TER', 'TOP', 'Topografía'),
+            ('TER', 'RAS', 'Rastreo'),
+            ('GEN', 'PRO', 'Proyecto General');
+        """)
     db.commit()
     db.close()
 
@@ -431,29 +461,6 @@ def editar_proyecto(proyecto_id):
             (nombre, carpeta, comuna, nueva_zona, notas, proyecto_id)
         )
 
-        # Agregar nuevos elementos si vienen en el form
-        nuevos_elementos = request.form.get("nuevos_elementos", "").strip()
-        if nuevos_elementos:
-            for item in nuevos_elementos.split(","):
-                item = item.strip()
-                if ":" in item:
-                    partes = item.split(":")
-                    nombre_elem = partes[0].strip()
-                    codigo_elem = partes[1].strip().upper()
-                    familia_elem = partes[2].strip().upper() if len(partes) > 2 else "OBR"
-                    if nombre_elem and codigo_elem:
-                        # Verificar que no exista ya
-                        existe = db.execute(
-                            "SELECT id FROM elementos_proyecto WHERE proyecto_id = ? AND codigo = ?",
-                            (proyecto_id, codigo_elem)
-                        ).fetchone()
-                        if not existe:
-                            db.execute(
-                                "INSERT INTO elementos_proyecto (proyecto_id, codigo, nombre, familia, orden) VALUES (?,?,?,?,?)",
-                                (proyecto_id, codigo_elem, nombre_elem, familia_elem, 100)
-                            )
-                            cambios.append(f"elemento agregado: {codigo_elem} ({nombre_elem})")
-
         if cambios:
             desc = "Proyecto editado. " + "; ".join(cambios)
             db.execute(
@@ -469,7 +476,50 @@ def editar_proyecto(proyecto_id):
         "SELECT * FROM elementos_proyecto WHERE proyecto_id = ? ORDER BY orden, id",
         (proyecto_id,)
     ).fetchall()
-    return render_template("editar_proyecto.html", proyecto=proyecto, comunas=COMUNAS, elementos=elementos)
+
+    # Catálogo maestro para dropdowns condicionados
+    catalogo_raw = db.execute("SELECT * FROM catalogo_elementos WHERE activo = 1 ORDER BY familia, codigo").fetchall()
+    familias = sorted({c["familia"] for c in catalogo_raw})
+    catalogo_por_familia = {}
+    for c in catalogo_raw:
+        catalogo_por_familia.setdefault(c["familia"], []).append(c)
+
+    return render_template("editar_proyecto.html", proyecto=proyecto, comunas=COMUNAS, elementos=elementos, familias=familias, catalogo=catalogo_por_familia)
+
+
+@app.route("/proyecto/<int:proyecto_id>/elemento", methods=["POST"])
+def agregar_elemento_proyecto(proyecto_id):
+    db = get_db()
+    familia_elem = request.form.get("familia_elemento", "").strip().upper()
+    codigo_elem = request.form.get("elemento_catalogo", "").strip().upper()
+    if not familia_elem or not codigo_elem:
+        flash("Debes seleccionar familia y elemento", "err")
+        return redirect(url_for("editar_proyecto", proyecto_id=proyecto_id))
+    cat = db.execute(
+        "SELECT * FROM catalogo_elementos WHERE familia = ? AND codigo = ? AND activo = 1",
+        (familia_elem, codigo_elem)
+    ).fetchone()
+    if not cat:
+        flash("Elemento no encontrado en el catálogo", "err")
+        return redirect(url_for("editar_proyecto", proyecto_id=proyecto_id))
+    existe = db.execute(
+        "SELECT id FROM elementos_proyecto WHERE proyecto_id = ? AND codigo = ?",
+        (proyecto_id, codigo_elem)
+    ).fetchone()
+    if existe:
+        flash(f"El elemento {codigo_elem} ya existe en este proyecto", "err")
+        return redirect(url_for("editar_proyecto", proyecto_id=proyecto_id))
+    db.execute(
+        "INSERT INTO elementos_proyecto (proyecto_id, codigo, nombre, familia, orden) VALUES (?,?,?,?,?)",
+        (proyecto_id, cat["codigo"], cat["nombre"], cat["familia"], 100)
+    )
+    db.execute(
+        "INSERT INTO historial (proyecto_id, accion, descripcion, fecha) VALUES (?,?,?,?)",
+        (proyecto_id, "elemento_agregado", f"Elemento {cat['codigo']} ({cat['nombre']}) agregado desde catálogo", now_chile())
+    )
+    db.commit()
+    flash(f"Elemento {codigo_elem} agregado", "ok")
+    return redirect(url_for("editar_proyecto", proyecto_id=proyecto_id))
 
 
 @app.route("/proyecto/<int:proyecto_id>")
@@ -514,11 +564,19 @@ def ver_proyecto(proyecto_id):
         (proyecto_id,)
     ).fetchall()
 
+    # Validación de tipologías: detectar documentos con tipologías no esperadas
+    tipologias_validas = {e["codigo"] for e in elementos if e["familia"] == "VIV"}
+    alertas_tipologias = []
+    for d in documentos:
+        if d["familia"] == "VIV" and d["elemento"] not in tipologias_validas:
+            alertas_tipologias.append(f"{d['codigo_completo']} usa tipología {d['elemento']} que no está en el proyecto (solo hay {len(tipologias_validas)} tipologías definidas)")
+
     return render_template("proyecto.html", proyecto=proyecto, documentos=documentos,
                            solicitudes=solicitudes, resumen=resumen,
                            config_modulos=config_modulos, config_tipos=config_tipos,
                            elementos=elementos, actas=actas,
-                           num_tipologias=len([e for e in elementos if e["familia"] == "VIV"]))
+                           num_tipologias=len([e for e in elementos if e["familia"] == "VIV"]),
+                           alertas_tipologias=alertas_tipologias)
 
 @app.route("/proyecto/<int:proyecto_id>/cerrar", methods=["POST"])
 def cerrar_proyecto(proyecto_id):
@@ -749,7 +807,10 @@ def config():
     db = get_db()
     modulos = db.execute("SELECT * FROM config_modulos ORDER BY codigo").fetchall()
     tipos = db.execute("SELECT * FROM config_tipos_documento ORDER BY codigo").fetchall()
-    return render_template("config.html", modulos=modulos, tipos=tipos)
+    catalogo = db.execute("SELECT * FROM catalogo_elementos ORDER BY familia, codigo").fetchall()
+    familias = sorted({c["familia"] for c in catalogo})
+    return render_template("config.html", modulos=modulos, tipos=tipos, catalogo=catalogo, familias=familias)
+
 
 @app.route("/config/modulo", methods=["POST"])
 def agregar_modulo():
@@ -764,6 +825,7 @@ def agregar_modulo():
         flash("Ese código de módulo ya existe", "err")
     return redirect(url_for("config"))
 
+
 @app.route("/config/tipo", methods=["POST"])
 def agregar_tipo():
     db = get_db()
@@ -777,19 +839,64 @@ def agregar_tipo():
         flash("Ese código de tipo ya existe", "err")
     return redirect(url_for("config"))
 
+
+@app.route("/config/elemento", methods=["POST"])
+def agregar_elemento_catalogo():
+    db = get_db()
+    familia = request.form["familia"].strip().upper()
+    codigo = request.form["codigo"].strip().upper()
+    nombre = request.form["nombre"].strip()
+    try:
+        db.execute("INSERT INTO catalogo_elementos (familia, codigo, nombre) VALUES (?,?,?)", (familia, codigo, nombre))
+        db.commit()
+        flash(f"Elemento {codigo} ({nombre}) agregado al catálogo", "ok")
+    except sqlite3.IntegrityError:
+        flash("Esa combinación familia+código ya existe", "err")
+    return redirect(url_for("config"))
+
 # ──────────────────────────────────────────────────────────────
 # CEMENTERIO
 # ──────────────────────────────────────────────────────────────
 @app.route("/cementerio")
 def cementerio():
     db = get_db()
+    pagina = max(1, int(request.args.get("pagina", 1)))
+    por_pagina = 50
+    offset = (pagina - 1) * por_pagina
+    total = db.execute("SELECT COUNT(*) as c FROM documentos_eliminados").fetchone()["c"]
+    total_paginas = (total + por_pagina - 1) // por_pagina
     eliminados = db.execute(
         """SELECT de.*, p.acronimo, p.nombre
         FROM documentos_eliminados de
         JOIN proyectos p ON de.proyecto_id = p.id
-        ORDER BY de.fecha_eliminacion DESC"""
+        ORDER BY de.fecha_eliminacion DESC
+        LIMIT ? OFFSET ?""", (por_pagina, offset)
     ).fetchall()
-    return render_template("cementerio.html", eliminados=eliminados)
+    return render_template("cementerio.html", eliminados=eliminados, pagina=pagina, total_paginas=total_paginas, total=total)
+
+
+@app.route("/cementerio/restaurar/<int:cementerio_id>", methods=["POST"])
+def restaurar_documento(cementerio_id):
+    db = get_db()
+    eliminado = db.execute(
+        "SELECT * FROM documentos_eliminados WHERE id = ?", (cementerio_id,)
+    ).fetchone()
+    if not eliminado:
+        flash("Registro no encontrado en cementerio", "err")
+        return redirect(url_for("cementerio"))
+    db.execute(
+        "UPDATE documentos SET activo = 1 WHERE id = ?",
+        (eliminado["documento_id_original"],)
+    )
+    db.execute("DELETE FROM documentos_eliminados WHERE id = ?", (cementerio_id,))
+    db.execute(
+        "INSERT INTO historial (proyecto_id, documento_id, accion, descripcion, fecha) VALUES (?,?,?,?,?)",
+        (eliminado["proyecto_id"], eliminado["documento_id_original"], "restauracion",
+         f"Documento {eliminado['codigo_completo']} restaurado desde cementerio", now_chile())
+    )
+    db.commit()
+    flash(f"Documento {eliminado['codigo_completo']} restaurado", "ok")
+    return redirect(url_for("cementerio"))
 
 # ──────────────────────────────────────────────────────────────
 # HISTORIAL
@@ -798,14 +905,21 @@ def cementerio():
 def ver_historial(proyecto_id):
     db = get_db()
     proyecto = db.execute("SELECT * FROM proyectos WHERE id = ?", (proyecto_id,)).fetchone()
+    pagina = max(1, int(request.args.get("pagina", 1)))
+    por_pagina = 50
+    offset = (pagina - 1) * por_pagina
+    total = db.execute("SELECT COUNT(*) as c FROM historial WHERE proyecto_id = ?", (proyecto_id,)).fetchone()["c"]
+    total_paginas = (total + por_pagina - 1) // por_pagina
     historial = db.execute("""
         SELECT h.*, d.codigo_completo as doc_codigo
         FROM historial h
         LEFT JOIN documentos d ON h.documento_id = d.id
         WHERE h.proyecto_id = ?
         ORDER BY h.fecha DESC
-    """, (proyecto_id,)).fetchall()
-    return render_template("historial.html", proyecto=proyecto, historial=historial)
+        LIMIT ? OFFSET ?
+    """, (proyecto_id, por_pagina, offset)).fetchall()
+    return render_template("historial.html", proyecto=proyecto, historial=historial,
+                           pagina=pagina, total_paginas=total_paginas, total=total)
 
 # ──────────────────────────────────────────────────────────────
 # FASE 4 - REVISIONES
@@ -853,6 +967,27 @@ def ver_solicitud(sol_id):
     return render_template("solicitud.html", sol=sol, proyecto=proyecto,
                            revisiones=revisiones, docs_pendientes=docs_pendientes,
                            resumen=resumen, acta=acta)
+
+
+@app.route("/solicitud/<int:sol_id>/editar", methods=["GET", "POST"])
+def editar_solicitud(sol_id):
+    db = get_db()
+    sol = db.execute("SELECT * FROM solicitudes WHERE id = ?", (sol_id,)).fetchone()
+    if not sol:
+        flash("Solicitud no encontrada", "err")
+        return redirect(url_for("index"))
+    if request.method == "POST":
+        fecha_limite = request.form.get("fecha_limite") or None
+        notas = request.form.get("notas", "").strip()
+        db.execute(
+            "UPDATE solicitudes SET fecha_limite = ?, notas = ? WHERE id = ?",
+            (fecha_limite, notas, sol_id)
+        )
+        db.commit()
+        flash("Solicitud actualizada", "ok")
+        return redirect(url_for("ver_solicitud", sol_id=sol_id))
+    proyecto = db.execute("SELECT * FROM proyectos WHERE id = ?", (sol["proyecto_id"],)).fetchone()
+    return render_template("editar_solicitud.html", sol=sol, proyecto=proyecto)
 
 
 @app.route("/acta/<int:acta_id>")
@@ -1026,6 +1161,31 @@ def completar_solicitud(sol_id):
     flash("Acta de revisión generada automáticamente", "ok")
 
     return redirect(url_for("ver_solicitud", sol_id=sol_id))
+
+
+@app.route("/solicitud/<int:sol_id>/cancelar", methods=["POST"])
+def cancelar_solicitud(sol_id):
+    db = get_db()
+    sol = db.execute("SELECT * FROM solicitudes WHERE id = ?", (sol_id,)).fetchone()
+    if not sol:
+        flash("Solicitud no encontrada", "err")
+        return redirect(url_for("index"))
+    if sol["estado"] == "completada":
+        flash("No se puede cancelar una solicitud ya completada", "err")
+        return redirect(url_for("ver_solicitud", sol_id=sol_id))
+    db.execute(
+        "UPDATE solicitudes SET estado = 'cancelada', fecha_cierre = ? WHERE id = ?",
+        (now_chile(), sol_id)
+    )
+    db.execute(
+        "INSERT INTO historial (proyecto_id, solicitud_id, accion, descripcion, fecha) VALUES (?,?,?,?,?)",
+        (sol["proyecto_id"], sol_id, "cancelar",
+         f"Solicitud {sol['tipo']} #{sol['numero_iteracion']} cancelada", now_chile())
+    )
+    _actualizar_estado_flujo(sol["proyecto_id"], db)
+    db.commit()
+    flash(f"Solicitud {sol['tipo']} #{sol['numero_iteracion']} cancelada", "ok")
+    return redirect(url_for("ver_proyecto", proyecto_id=sol["proyecto_id"]))
 
 
 # ──────────────────────────────────────────────────────────────
@@ -1623,6 +1783,28 @@ def eliminar_tarea(tarea_id):
     return redirect(url_for("tareas"))
 
 
+@app.route("/tarea/<int:tarea_id>/editar", methods=["GET", "POST"])
+def editar_tarea(tarea_id):
+    db = get_db()
+    tarea = db.execute("SELECT * FROM tareas WHERE id = ?", (tarea_id,)).fetchone()
+    if not tarea:
+        flash("Tarea no encontrada", "err")
+        return redirect(url_for("tareas"))
+    if request.method == "POST":
+        asunto = request.form["asunto"].strip()
+        fecha_solicitud = request.form["fecha_solicitud"]
+        fecha_limite = request.form.get("fecha_limite") or None
+        notas = request.form.get("notas", "").strip()
+        db.execute(
+            "UPDATE tareas SET asunto = ?, fecha_solicitud = ?, fecha_limite = ?, notas = ? WHERE id = ?",
+            (asunto, fecha_solicitud, fecha_limite, notas, tarea_id)
+        )
+        db.commit()
+        flash("Tarea actualizada", "ok")
+        return redirect(url_for("tareas"))
+    return render_template("editar_tarea.html", tarea=tarea)
+
+
 # ──────────────────────────────────────────────────────────────
 # JORNADA LABORAL
 # ──────────────────────────────────────────────────────────────
@@ -1694,6 +1876,33 @@ def jornada():
                            es_lunes_hoy=es_lunes_hoy, hoy=hoy.isoformat())
 
 
+@app.route("/buscar")
+def buscar():
+    db = get_db()
+    q = request.args.get("q", "").strip()
+    if not q or len(q) < 2:
+        flash("Ingresa al menos 2 caracteres para buscar", "err")
+        return redirect(url_for("index"))
+    like = f"%{q}%"
+    proyectos = db.execute(
+        "SELECT * FROM proyectos WHERE acronimo LIKE ? OR nombre LIKE ? OR comuna LIKE ? ORDER BY fecha_creacion DESC LIMIT 20",
+        (like, like, like)
+    ).fetchall()
+    documentos = db.execute(
+        """SELECT d.*, p.acronimo, p.nombre as proyecto_nombre, p.id as proyecto_id
+        FROM documentos d
+        JOIN proyectos p ON d.proyecto_id = p.id
+        WHERE d.activo = 1 AND (d.codigo_completo LIKE ? OR d.titulo LIKE ?)
+        ORDER BY d.codigo_completo LIMIT 30""",
+        (like, like)
+    ).fetchall()
+    tareas = db.execute(
+        "SELECT * FROM tareas WHERE asunto LIKE ? OR notas LIKE ? ORDER BY fecha_creacion DESC LIMIT 20",
+        (like, like)
+    ).fetchall()
+    return render_template("buscar.html", q=q, proyectos=proyectos, documentos=documentos, tareas=tareas)
+
+
 @app.route("/jornada/fichar", methods=["POST"])
 def fichar_jornada():
     db = get_db()
@@ -1731,6 +1940,28 @@ def fichar_jornada():
         flash(f"Día marcado como {accion}", "ok")
 
     db.commit()
+    return redirect(url_for("jornada"))
+
+
+@app.route("/jornada/editar", methods=["POST"])
+def editar_jornada():
+    db = get_db()
+    fecha = request.form["fecha"]
+    entrada = request.form.get("entrada", "").strip()
+    salida = request.form.get("salida", "").strip()
+    reg = db.execute("SELECT * FROM jornada WHERE fecha = ?", (fecha,)).fetchone()
+    if reg:
+        db.execute(
+            "UPDATE jornada SET entrada = ?, salida = ?, estado = 'trabajado' WHERE fecha = ?",
+            (entrada or None, salida or None, fecha)
+        )
+    else:
+        db.execute(
+            "INSERT INTO jornada (fecha, entrada, salida, estado) VALUES (?,?,?,?)",
+            (fecha, entrada or None, salida or None, "trabajado")
+        )
+    db.commit()
+    flash("Horas actualizadas", "ok")
     return redirect(url_for("jornada"))
 
 

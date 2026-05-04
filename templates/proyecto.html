@@ -25,26 +25,37 @@
     </div>
 </header>
 
+{% if alertas_tipologias %}
+<section class="card" style="border-color:#f59e0b;background:#fffbeb;">
+    <h3 style="color:#92400e;margin-bottom:8px;">⚠️ Alertas de tipologías</h3>
+    <ul style="margin:0;padding-left:18px;color:#78350f;font-size:13px;">
+        {% for a in alertas_tipologias %}
+        <li>{{ a }}</li>
+        {% endfor %}
+    </ul>
+</section>
+{% endif %}
+
 <!-- Tarjetas de info del proyecto -->
 <section class="grid" style="margin-bottom:1rem;">
     <div class="card" style="padding:1rem;">
         <div style="display:flex; gap:1.5rem; flex-wrap:wrap;">
             {% if proyecto.comuna %}
             <div>
-                <div class="small" style="color:var(--muted);">Comuna</div>
+                <div class="small" style="color:var(--text-muted);">Comuna</div>
                 <div style="font-weight:600;">{{ proyecto.comuna }}</div>
             </div>
             {% endif %}
             <div>
-                <div class="small" style="color:var(--muted);">Zona sísmica</div>
+                <div class="small" style="color:var(--text-muted);">Zona sísmica</div>
                 <div style="font-weight:600; font-size:1.2rem;">{% if proyecto.zona_sismica %}Z{{ proyecto.zona_sismica }}{% else %}<span class="small">—</span>{% endif %}</div>
             </div>
             <div>
-                <div class="small" style="color:var(--muted);">Tipologías</div>
+                <div class="small" style="color:var(--text-muted);">Tipologías</div>
                 <div style="font-weight:600;">{{ num_tipologias or 0 }}</div>
             </div>
             <div>
-                <div class="small" style="color:var(--muted);">Elementos</div>
+                <div class="small" style="color:var(--text-muted);">Elementos</div>
                 <div style="display:flex; gap:0.3rem; flex-wrap:wrap; margin-top:2px;">
                     {% for e in elementos %}
                         <span class="badge {{ e.familia }}" title="{{ e.nombre }}">{{ e.codigo }}</span>

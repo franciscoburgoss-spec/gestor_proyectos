@@ -87,6 +87,12 @@
                 </form>
                 {% endif %}
             </div>
+            <form method="post" action="{{ url_for('editar_jornada') }}" style="margin-top:6px;display:flex;gap:4px;flex-wrap:wrap;">
+                <input type="hidden" name="fecha" value="{{ d.fecha_str }}">
+                <input type="time" name="entrada" value="{{ d.registro.entrada if d.registro else '' }}" style="width:70px;font-size:11px;padding:2px;">
+                <input type="time" name="salida" value="{{ d.registro.salida if d.registro else '' }}" style="width:70px;font-size:11px;padding:2px;">
+                <button type="submit" style="padding:2px 6px;font-size:11px;">Guardar</button>
+            </form>
         </div>
         {% endfor %}
     </div>

@@ -39,7 +39,11 @@
     <form action="{{ url_for('completar_solicitud', sol_id=sol.id) }}" method="POST" style="display:inline;" onsubmit="return confirm('¿Marcar esta solicitud como completada?');">
         <button type="submit" class="btn" style="background:var(--success);">✓ Completar solicitud</button>
     </form>
+    <form action="{{ url_for('cancelar_solicitud', sol_id=sol.id) }}" method="POST" style="display:inline;" onsubmit="return confirm('¿Cancelar esta solicitud? Los documentos no aprobados quedarán pendientes.');">
+        <button type="submit" class="btn" style="background:var(--danger);">✕ Cancelar</button>
+    </form>
     <a href="{{ url_for('generar_email', sol_id=sol.id) }}" class="btn" style="background:#6c757d;">✉ Generar correo</a>
+    <a href="{{ url_for('editar_solicitud', sol_id=sol.id) }}" class="btn" style="background:var(--warning);">✏️ Editar</a>
 </div>
 {% else %}
 <div style="margin-bottom:20px; display:flex; gap:10px; align-items:center;">
@@ -48,6 +52,7 @@
         <a href="{{ url_for('ver_acta', acta_id=acta.id) }}" class="btn-sm">📋 Ver acta</a>
     {% endif %}
     <a href="{{ url_for('generar_email', sol_id=sol.id) }}" class="btn" style="background:#6c757d;">✉ Generar correo</a>
+    <a href="{{ url_for('editar_solicitud', sol_id=sol.id) }}" class="btn" style="background:var(--warning);">✏️ Editar</a>
 </div>
 {% endif %}
 

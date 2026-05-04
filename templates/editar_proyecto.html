@@ -48,17 +48,62 @@
             <textarea id="notas" name="notas" rows="4">{{ proyecto.notas or '' }}</textarea>
         </div>
 
-        <div class="form-group">
-            <label for="nuevos_elementos">Agregar elementos del proyecto</label>
-            <input type="text" id="nuevos_elementos" name="nuevos_elementos" placeholder="nombre:código:familia (ej: Sede Social:SMU:REC, Muros:MUR:OBR). Familia por defecto: OBR">
-            <p class="help-text">Solo agrega. Los elementos existentes se muestran abajo. Para eliminar, contacta a Schema 😊. Familias: VIV, REC, TER, OBR, URB, GEN.</p>
-        </div>
-
         <div class="form-actions">
             <button type="submit" class="btn">Guardar cambios</button>
             <a href="{{ url_for('ver_proyecto', proyecto_id=proyecto.id) }}" class="btn btn-secondary">Cancelar</a>
         </div>
     </form>
+
+    <hr style="margin:24px 0;border:none;border-top:1px solid var(--border);">
+
+    <form action="{{ url_for('agregar_elemento_proyecto', proyecto_id=proyecto.id) }}" method="POST">
+        <div class="form-group">
+            <label>Agregar elemento del catálogo</label>
+            <div class="row" style="align-items:flex-end;">
+                <div style="flex:1;">
+                    <label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:4px;">Familia</label>
+                    <select id="familia_select" name="familia_elemento" style="width:100%;" onchange="filtrarElementos()">
+                        <option value="">— Seleccionar —</option>
+                        {% for f in familias %}
+                        <option value="{{ f }}">{{ f }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div style="flex:2;">
+                    <label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:4px;">Elemento</label>
+                    <select id="elemento_select" name="elemento_catalogo" style="width:100%;" disabled>
+                        <option value="">Primero selecciona una familia</option>
+                    </select>
+                </div>
+                <div>
+                    <button type="submit" class="btn">Agregar</button>
+                </div>
+            </div>
+            <p class="help-text">Selecciona familia y elemento del catálogo. Si falta uno, <a href="{{ url_for('config') }}">agrégarlo en Configuración</a>.</p>
+        </div>
+    </form>
+
+    <script>
+    var catalogo = {{ catalogo|tojson }};
+    function filtrarElementos() {
+        var familia = document.getElementById('familia_select').value;
+        var sel = document.getElementById('elemento_select');
+        sel.innerHTML = '';
+        if (!familia || !catalogo[familia]) {
+            sel.disabled = true;
+            sel.innerHTML = '<option value="">Primero selecciona una familia</option>';
+            return;
+        }
+        sel.disabled = false;
+        var elems = catalogo[familia];
+        for (var i = 0; i < elems.length; i++) {
+            var opt = document.createElement('option');
+            opt.value = elems[i].codigo;
+            opt.text = elems[i].codigo + ' — ' + elems[i].nombre;
+            sel.appendChild(opt);
+        }
+    }
+    </script>
 </section>
 
 {% if elementos %}

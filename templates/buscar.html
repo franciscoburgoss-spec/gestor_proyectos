@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% block title %}Buscar: {{ q }}{% endblock %}
+{% block content %}
+
+<h1>🔍 Resultados para "{{ q }}"</h1>
+
+<!-- Proyectos -->
+<section class="card">
+    <h2>Proyectos</h2>
+    {% if proyectos %}
+    <table class="table compact">
+        <thead>
+            <tr><th>Acrónimo</th><th>Nombre</th><th>Comuna</th><th></th></tr>
+        </thead>
+        <tbody>
+            {% for p in proyectos %}
+            <tr>
+                <td class="mono">{{ p.acronimo }}</td>
+                <td>{{ p.nombre }}</td>
+                <td>{{ p.comuna or '-' }}</td>
+                <td><a href="{{ url_for('ver_proyecto', proyecto_id=p.id) }}" class="btn-sm">Ver</a></td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p class="empty">Sin proyectos.</p>
+    {% endif %}
+</section>
+
+<!-- Documentos -->
+<section class="card">
+    <h2>Documentos</h2>
+    {% if documentos %}
+    <table class="table compact">
+        <thead>
+            <tr><th>Código</th><th>Título</th><th>Proyecto</th><th></th></tr>
+        </thead>
+        <tbody>
+            {% for d in documentos %}
+            <tr>
+                <td class="mono">{{ d.codigo_completo }}</td>
+                <td>{{ d.titulo }}</td>
+                <td>{{ d.acronimo }}</td>
+                <td><a href="{{ url_for('ver_documento', doc_id=d.id) }}" class="btn-sm">Ver</a></td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p class="empty">Sin documentos.</p>
+    {% endif %}
+</section>
+
+<!-- Tareas -->
+<section class="card">
+    <h2>Tareas</h2>
+    {% if tareas %}
+    <table class="table compact">
+        <thead>
+            <tr><th>Asunto</th><th>Estado</th><th>Fecha límite</th></tr>
+        </thead>
+        <tbody>
+            {% for t in tareas %}
+            <tr>
+                <td>{{ t.asunto }}</td>
+                <td><span class="badge {{ t.estado }}">{{ t.estado }}</span></td>
+                <td>{{ t.fecha_limite or '-' }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p class="empty">Sin tareas.</p>
+    {% endif %}
+</section>
+
+<a href="{{ url_for('index') }}" class="back">← Volver</a>
+
+{% endblock %}

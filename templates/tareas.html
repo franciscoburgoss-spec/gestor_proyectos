@@ -82,6 +82,7 @@
                     <form method="post" action="{{ url_for('eliminar_tarea', tarea_id=t.id) }}" style="display:inline;" onsubmit="return confirm('¿Eliminar esta tarea?')">
                         <button type="submit" class="btn-danger" style="padding:4px 8px;font-size:12px;">×</button>
                     </form>
+                    <a href="{{ url_for('editar_tarea', tarea_id=t.id) }}" style="padding:4px 8px;font-size:12px;background:var(--bg);border:1px solid var(--border);border-radius:4px;text-decoration:none;color:var(--text);display:inline-block;">Editar</a>
                 </td>
             </tr>
             {% else %}

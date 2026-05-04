@@ -31,4 +31,18 @@
 
 <a href="{{ url_for('ver_proyecto', proyecto_id=proyecto.id) }}" class="back">← Volver al proyecto</a>
 
+{% if total_paginas > 1 %}
+<div style="display:flex; gap:8px; justify-content:center; margin:20px 0; align-items:center;">
+    {% if pagina > 1 %}
+        <a href="{{ url_for('ver_historial', proyecto_id=proyecto.id, pagina=pagina-1) }}" class="btn-sm">← Anterior</a>
+    {% endif %}
+    <span style="font-size:13px; color:var(--text-muted);">
+        Página {{ pagina }} de {{ total_paginas }} ({{ total }} registros)
+    </span>
+    {% if pagina < total_paginas %}
+        <a href="{{ url_for('ver_historial', proyecto_id=proyecto.id, pagina=pagina+1) }}" class="btn-sm">Siguiente →</a>
+    {% endif %}
+</div>
+{% endif %}
+
 {% endblock %}
