@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 import sqlite3
-from flask import Flask, render_template, request, redirect, url_for, flash, g, send_file
+from flask import Flask, render_template, request, redirect, url_for, flash, g, send_file, session
 import io
 from fpdf import FPDF
 from pathlib import Path
@@ -9,43 +9,13 @@ from zoneinfo import ZoneInfo
 import os
 import zipfile
 import json
+import logging
+import csv
+from logging.handlers import RotatingFileHandler
+
+from utils import now_chile, dias_habiles, ascii_safe
 
 TZ_CHILE = ZoneInfo("America/Santiago")
-
-def now_chile():
-    """Devuelve fecha/hora actual en Chile como string YYYY-MM-DD HH:MM:SS."""
-    return datetime.now(TZ_CHILE).strftime("%Y-%m-%d %H:%M:%S")
-
-
-def dias_habiles(fecha_inicio, fecha_fin):
-    """Cuenta días hábiles entre dos fechas (inclusive), excluyendo sábados y domingos."""
-    if fecha_fin < fecha_inicio:
-        return -1
-    dias = 0
-    current = fecha_inicio
-    while current <= fecha_fin:
-        if current.weekday() < 5:
-            dias += 1
-        current += timedelta(days=1)
-    return dias
-
-
-def ascii_safe(text):
-    """Convierte texto a ASCII basico para compatibilidad con fuentes core de FPDF2."""
-    if text is None:
-        return ""
-    t = str(text)
-    # Em-dash / en-dash a guion simple
-    t = t.replace("\u2014", "-").replace("\u2013", "-")
-    # Comillas tipograficas a simples
-    t = t.replace("\u2018", "'").replace("\u2019", "'")
-    t = t.replace("\u201c", '"').replace("\u201d", '"')
-    # Tildes y acentos
-    trans = str.maketrans(
-        "áéíóúÁÉÍÓÚñÑüÜ¿¡",
-        "aeiouAEIOUnNuU?!"
-    )
-    return t.translate(trans)
 
 
 # ──────────────────────────────────────────────────────────────
@@ -150,6 +120,14 @@ else:
     SECRET_KEY = os.urandom(32).hex()
     SECRET_KEY_FILE.write_text(SECRET_KEY)
 
+# Nombre de usuario para reportes y emails (editable)
+USER_NAME_FILE = BASE_DIR / ".user_name"
+if USER_NAME_FILE.exists():
+    USER_NAME = USER_NAME_FILE.read_text().strip()
+else:
+    USER_NAME = "Usuario"
+    USER_NAME_FILE.write_text(USER_NAME)
+
 
 # Cargar comunas con zona sísmica
 COMUNAS_PATH = BASE_DIR / "static" / "comunas.json"
@@ -166,6 +144,21 @@ ZONAS = {c["nombre"]: c["zona"] for c in COMUNAS_DATA.get("comunas", [])}
 app = Flask(__name__)
 app.secret_key = SECRET_KEY
 
+# Configuracion de logging a archivo rotativo
+LOG_DIR = BASE_DIR / "logs"
+LOG_DIR.mkdir(exist_ok=True)
+log_handler = RotatingFileHandler(
+    LOG_DIR / "app.log",
+    maxBytes=1_000_000,  # 1 MB
+    backupCount=5
+)
+log_handler.setLevel(logging.INFO)
+log_handler.setFormatter(logging.Formatter(
+    "%(asctime)s %(levelname)s [%(pathname)s:%(lineno)d] %(message)s"
+))
+app.logger.addHandler(log_handler)
+app.logger.setLevel(logging.INFO)
+
 DATABASE = BASE_DIR / "data" / "proyectos.db"
 SCHEMA = BASE_DIR / "schema.sql"
 
@@ -174,7 +167,15 @@ def get_db():
         g.db = sqlite3.connect(str(DATABASE))
         g.db.row_factory = sqlite3.Row
         g.db.execute("PRAGMA foreign_keys = ON")
+        g.db.execute("PRAGMA journal_mode = WAL")
     return g.db
+
+@app.after_request
+def add_cache_headers(response):
+    """Agrega cache headers a archivos estaticos para reducir I/O de disco."""
+    if request.path.startswith("/static/"):
+        response.headers["Cache-Control"] = "public, max-age=86400"
+    return response
 
 @app.teardown_appcontext
 def close_db(exception):
@@ -354,7 +355,26 @@ def index():
             row['urgencia_texto'] = 'Sin límite'
         pendientes.append(row)
 
-    return render_template("index.html", proyectos=proyectos, cerrados=cerrados, pendientes=pendientes, hoy=now_chile()[:10], filtro=filtro, comunas=COMUNAS)
+    # ── KPIs Dashboard ──
+    kpi = {}
+    kpi['proyectos_activos'] = db.execute("SELECT COUNT(*) FROM proyectos WHERE estado_global = 'activo'").fetchone()[0]
+    kpi['total_documentos'] = db.execute("SELECT COUNT(*) FROM documentos WHERE activo = 1").fetchone()[0]
+    estados_docs = db.execute("SELECT estado, COUNT(*) as c FROM documentos WHERE activo = 1 GROUP BY estado").fetchall()
+    kpi['docs_aprobados'] = sum(r['c'] for r in estados_docs if r['estado'] == 'aprobado')
+    kpi['docs_pendientes'] = sum(r['c'] for r in estados_docs if r['estado'] == 'pendiente')
+    kpi['docs_rechazados'] = sum(r['c'] for r in estados_docs if r['estado'] == 'rechazado')
+    kpi['solicitudes_vencidas'] = db.execute(
+        "SELECT COUNT(*) FROM solicitudes WHERE estado != 'completada' AND fecha_limite < ?",
+        (now_chile()[:10],)
+    ).fetchone()[0]
+    lunes_str = (hoy_date - timedelta(days=hoy_date.weekday())).strftime("%Y-%m-%d")
+    kpi['sol_completadas_semana'] = db.execute(
+        "SELECT COUNT(*) FROM solicitudes WHERE estado = 'completada' AND fecha_cierre >= ?",
+        (lunes_str,)
+    ).fetchone()[0]
+
+    return render_template("index.html", proyectos=proyectos, cerrados=cerrados, pendientes=pendientes,
+                           hoy=now_chile()[:10], filtro=filtro, comunas=COMUNAS, kpi=kpi)
 
 @app.route("/proyecto/crear", methods=["POST"])
 def crear_proyecto():
@@ -538,14 +558,28 @@ def ver_proyecto(proyecto_id):
         (proyecto_id,)
     ).fetchall()
 
-    documentos = db.execute(
-        """SELECT d.*, e.codigo as elem_codigo, e.nombre as elem_nombre 
+    # ── Filtros de documentos ──
+    filtro_estado = request.args.get("estado", "").strip().lower()
+    filtro_modulo = request.args.get("modulo", "").strip().upper()
+    filtro_tipo = request.args.get("tipo", "").strip().upper()
+
+    sql_docs = """SELECT d.*, e.codigo as elem_codigo, e.nombre as elem_nombre 
            FROM documentos d 
            LEFT JOIN elementos_proyecto e ON d.elemento_id = e.id 
-           WHERE d.proyecto_id = ? AND d.activo = 1 
-           ORDER BY d.codigo_completo""",
-        (proyecto_id,)
-    ).fetchall()
+           WHERE d.proyecto_id = ? AND d.activo = 1"""
+    params_docs = [proyecto_id]
+    if filtro_estado:
+        sql_docs += " AND d.estado = ?"
+        params_docs.append(filtro_estado)
+    if filtro_modulo:
+        sql_docs += " AND d.modulo = ?"
+        params_docs.append(filtro_modulo)
+    if filtro_tipo:
+        sql_docs += " AND d.tipo_documento = ?"
+        params_docs.append(filtro_tipo)
+    sql_docs += " ORDER BY d.codigo_completo"
+
+    documentos = db.execute(sql_docs, params_docs).fetchall()
 
     solicitudes = db.execute(
         "SELECT * FROM solicitudes WHERE proyecto_id = ? ORDER BY fecha_entrada DESC",
@@ -574,12 +608,20 @@ def ver_proyecto(proyecto_id):
         if d["familia"] == "VIV" and d["elemento"] not in tipologias_validas:
             alertas_tipologias.append(f"{d['codigo_completo']} usa tipología {d['elemento']} que no está en el proyecto (solo hay {len(tipologias_validas)} tipologías definidas)")
 
+    # Recuperar datos de formulario preservados tras error (documento duplicado)
+    doc_form_data = session.pop("doc_form_data", None)
+
     return render_template("proyecto.html", proyecto=proyecto, documentos=documentos,
                            solicitudes=solicitudes, resumen=resumen,
                            config_modulos=config_modulos, config_tipos=config_tipos,
                            elementos=elementos, actas=actas,
                            num_tipologias=len([e for e in elementos if e["familia"] == "VIV"]),
-                           alertas_tipologias=alertas_tipologias)
+                           alertas_tipologias=alertas_tipologias,
+                           doc_form_data=doc_form_data,
+                           filtro_estado=filtro_estado,
+                           filtro_modulo=filtro_modulo,
+                           filtro_tipo=filtro_tipo,
+                           hoy=now_chile()[:10])
 
 @app.route("/proyecto/<int:proyecto_id>/cerrar", methods=["POST"])
 def cerrar_proyecto(proyecto_id):
@@ -639,6 +681,11 @@ def crear_documento():
             f"Combinación inválida: el módulo {modulo} no admite la familia {familia}. "
             f"Familias permitidas: {', '.join(sorted(familias_permitidas))}", "err"
         )
+        session["doc_form_data"] = {
+            "acronimo": acronimo, "modulo": modulo, "revision": revision,
+            "tipo_documento": tipo_doc, "version": version,
+            "titulo": titulo, "ruta_fisica": ruta, "elemento_id": elemento_id
+        }
         return redirect(url_for("ver_proyecto", proyecto_id=proyecto_id))
 
     codigo = f"{acronimo}-{modulo}-{familia}-{elemento}-{tipo_doc}-{revision}-{version}"
@@ -661,6 +708,11 @@ def crear_documento():
         flash(f"Documento {codigo} registrado", "ok")
     except sqlite3.IntegrityError:
         flash(f"Ya existe un documento con código {codigo}", "err")
+        session["doc_form_data"] = {
+            "acronimo": acronimo, "modulo": modulo, "revision": revision,
+            "tipo_documento": tipo_doc, "version": version,
+            "titulo": titulo, "ruta_fisica": ruta, "elemento_id": elemento_id
+        }
 
     return redirect(url_for("ver_proyecto", proyecto_id=proyecto_id))
 
@@ -1657,6 +1709,46 @@ def reporte_global_md():
     )
 
 
+
+
+@app.route("/exportar/proyectos/csv")
+def exportar_proyectos_csv():
+    """Exporta proyectos activos a CSV con conteo de documentos por estado."""
+    db = get_db()
+    proyectos = db.execute(
+        "SELECT * FROM proyectos WHERE estado_global = 'activo' ORDER BY fecha_creacion DESC"
+    ).fetchall()
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["id", "acronimo", "nombre", "estado_global", "carpeta_raiz",
+                       "comuna", "zona_sismica", "fecha_creacion",
+                       "total_docs", "aprobados", "observados", "rechazados", "pendientes"])
+
+    for p in proyectos:
+        counts = db.execute(
+            "SELECT estado, COUNT(*) as c FROM documentos WHERE proyecto_id = ? AND activo = 1 GROUP BY estado",
+            (p["id"],)
+        ).fetchall()
+        estados = {c["estado"]: c["c"] for c in counts}
+        total = sum(estados.values())
+        writer.writerow([
+            p["id"], p["acronimo"], p["nombre"], p["estado_global"], p["carpeta_raiz"] or "",
+            p["comuna"] or "", p["zona_sismica"] or "", p["fecha_creacion"][:10] if p["fecha_creacion"] else "",
+            total, estados.get("aprobado", 0), estados.get("observado", 0),
+            estados.get("rechazado", 0), estados.get("pendiente", 0)
+        ])
+
+    csv_bytes = output.getvalue().encode("utf-8-sig")
+    output.close()
+    buffer = io.BytesIO(csv_bytes)
+    buffer.seek(0)
+    return send_file(
+        buffer,
+        mimetype="text/csv; charset=utf-8-sig",
+        as_attachment=True,
+        download_name=f"proyectos_{now_chile()[:10]}.csv"
+    )
 @app.route("/proyecto/<int:proyecto_id>/repositorio/md")
 def repositorio_md(proyecto_id):
     db = get_db()
@@ -2076,7 +2168,7 @@ def generar_reporte_semanal():
 
     lines.append("Saludos,")
     lines.append("")
-    lines.append("Fran")
+    lines.append(USER_NAME)
 
     contenido = "\n".join(lines)
     filename = f"reporte_semanal_{lunes.strftime('%Y%m%d')}.txt"
@@ -2092,9 +2184,22 @@ def generar_reporte_semanal():
 
 
 # ──────────────────────────────────────────────────────────────
+# MANEJO DE ERRORES
+# ──────────────────────────────────────────────────────────────
+@app.errorhandler(404)
+def not_found(error):
+    return render_template("404.html"), 404
+
+
+@app.errorhandler(500)
+def internal_error(error):
+    return render_template("500.html"), 500
+
+
+# ──────────────────────────────────────────────────────────────
 if __name__ == "__main__":
     if not DATABASE.exists():
         init_db()
     else:
         migrate_db()
-    app.run(debug=False, host="0.0.0.0", port=5000)
+    app.run(debug=False, host="127.0.0.1", port=5000)

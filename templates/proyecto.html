@@ -90,38 +90,70 @@
                 <select name="modulo" required>
                     <option value="">Módulo</option>
                     {% for m in config_modulos %}
-                    <option value="{{ m.codigo }}">{{ m.codigo }} - {{ m.nombre }}</option>
+                    <option value="{{ m.codigo }}" {% if doc_form_data and doc_form_data.modulo == m.codigo %}selected{% endif %}>{{ m.codigo }} - {{ m.nombre }}</option>
                     {% endfor %}
                 </select>
                 <select name="revision" required>
                     <option value="">Revisión</option>
-                    <option value="CHK">CHK</option>
-                    <option value="R01">R01</option>
-                    <option value="R02">R02</option>
-                    <option value="REX">REX</option>
+                    <option value="CHK" {% if doc_form_data and doc_form_data.revision == 'CHK' %}selected{% endif %}>CHK</option>
+                    <option value="R01" {% if doc_form_data and doc_form_data.revision == 'R01' %}selected{% endif %}>R01</option>
+                    <option value="R02" {% if doc_form_data and doc_form_data.revision == 'R02' %}selected{% endif %}>R02</option>
+                    <option value="REX" {% if doc_form_data and doc_form_data.revision == 'REX' %}selected{% endif %}>REX</option>
                 </select>
             </div>
             <div class="row">
                 <select name="tipo_documento" required>
                     <option value="">Tipo</option>
                     {% for t in config_tipos %}
-                    <option value="{{ t.codigo }}">{{ t.codigo }} - {{ t.nombre }}</option>
+                    <option value="{{ t.codigo }}" {% if doc_form_data and doc_form_data.tipo_documento == t.codigo %}selected{% endif %}>{{ t.codigo }} - {{ t.nombre }}</option>
                     {% endfor %}
                 </select>
                 <select name="elemento_id" required>
                     <option value="">Elemento</option>
                     {% for e in elementos %}
-                    <option value="{{ e.id }}">{{ e.codigo }} — {{ e.nombre }}</option>
+                    <option value="{{ e.id }}" {% if doc_form_data and doc_form_data.elemento_id == e.id|string %}selected{% endif %}>{{ e.codigo }} — {{ e.nombre }}</option>
                     {% endfor %}
                 </select>
-                <input type="text" name="version" placeholder="V01" maxlength="3" required>
+                <input type="text" name="version" placeholder="V01" maxlength="3" required
+                    value="{{ doc_form_data.version|default('') }}">
             </div>
-            <input type="text" name="titulo" placeholder="Título del documento" required>
-            <input type="text" name="ruta_fisica" placeholder="Ruta relativa (ej: ING/CHK/EST-CHK/archivo.pdf)">
+            <input type="text" name="titulo" placeholder="Título del documento" required
+                value="{{ doc_form_data.titulo|default('') }}">
+            <input type="text" name="ruta_fisica" placeholder="Ruta relativa (ej: ING/CHK/EST-CHK/archivo.pdf)"
+                value="{{ doc_form_data.ruta_fisica|default('') }}">
             <button type="submit">Registrar documento</button>
         </form>
 
         {% if documentos %}
+        <!-- Filtros de documentos -->
+        <form method="GET" action="{{ url_for('ver_proyecto', proyecto_id=proyecto.id) }}" style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:12px; align-items:center;">
+            <select name="estado">
+                <option value="">Todos los estados</option>
+                <option value="sin_solicitud" {% if filtro_estado == 'sin_solicitud' %}selected{% endif %}>sin solicitud</option>
+                <option value="pendiente" {% if filtro_estado == 'pendiente' %}selected{% endif %}>pendiente</option>
+                <option value="aprobado" {% if filtro_estado == 'aprobado' %}selected{% endif %}>aprobado</option>
+                <option value="observado" {% if filtro_estado == 'observado' %}selected{% endif %}>observado</option>
+                <option value="rechazado" {% if filtro_estado == 'rechazado' %}selected{% endif %}>rechazado</option>
+            </select>
+            <select name="modulo">
+                <option value="">Todos los modulos</option>
+                {% for m in config_modulos %}
+                <option value="{{ m.codigo }}" {% if filtro_modulo == m.codigo %}selected{% endif %}>{{ m.codigo }}</option>
+                {% endfor %}
+            </select>
+            <select name="tipo">
+                <option value="">Todos los tipos</option>
+                {% for t in config_tipos %}
+                <option value="{{ t.codigo }}" {% if filtro_tipo == t.codigo %}selected{% endif %}>{{ t.codigo }}</option>
+                {% endfor %}
+            </select>
+            <button type="submit" class="btn-sm">Filtrar</button>
+            {% if filtro_estado or filtro_modulo or filtro_tipo %}
+            <a href="{{ url_for('ver_proyecto', proyecto_id=proyecto.id) }}" class="btn-sm" style="background:transparent; color:var(--danger);">Limpiar</a>
+            {% endif %}
+            <span style="font-size:12px; color:var(--text-muted); margin-left:auto;">{{ documentos|length }} documento(s)</span>
+        </form>
+
         <table class="table compact">
             <thead>
                 <tr><th>Código</th><th>Fam-Elemento</th><th>Título</th><th>Estado</th><th></th></tr>
@@ -158,7 +190,7 @@
                 </select>
             </div>
             <label>Fecha entrada</label>
-            <input type="date" name="fecha_entrada" required>
+            <input type="date" name="fecha_entrada" required value="{{ hoy }}">
             <label>Fecha límite</label>
             <input type="date" name="fecha_limite">
             <input type="text" name="notas" placeholder="Notas">

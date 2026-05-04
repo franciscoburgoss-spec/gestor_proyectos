@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}Error del servidor{% endblock %}
+{% block content %}
+
+<div style="text-align:center; padding:60px 20px;">
+    <h1 style="font-size:80px; color:var(--text-muted); margin-bottom:10px;">500</h1>
+    <h2 style="color:var(--warning); margin-bottom:20px;">Error interno del servidor</h2>
+    <p style="color:var(--text-muted); margin-bottom:30px; max-width:400px; margin-left:auto; margin-right:auto;">
+        Algo salio mal. Intenta recargar la pagina o vuelve al inicio.
+    </p>
+    <a href="{{ url_for('index') }}" class="btn" style="display:inline-block;">Volver al inicio</a>
+    <p style="margin-top:20px; font-size:12px; color:var(--text-muted);">
+        Si el problema persiste, revisa el archivo de log de la aplicacion.
+    </p>
+</div>
+
+{% endblock %}
