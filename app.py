@@ -438,7 +438,7 @@ def editar_proyecto(proyecto_id):
 
         # Zona sísmica: automática desde comunas.json según la comuna
         nueva_zona = ZONAS.get(comuna, None) if comuna else None
-        zona_anterior = proyecto.get("zona_sismica")
+        zona_anterior = proyecto["zona_sismica"]
 
         if not nombre or not carpeta:
             flash("Nombre y carpeta raíz son obligatorios", "err")
@@ -478,11 +478,14 @@ def editar_proyecto(proyecto_id):
     ).fetchall()
 
     # Catálogo maestro para dropdowns condicionados
-    catalogo_raw = db.execute("SELECT * FROM catalogo_elementos WHERE activo = 1 ORDER BY familia, codigo").fetchall()
+    try:
+        catalogo_raw = db.execute("SELECT * FROM catalogo_elementos WHERE activo = 1 ORDER BY familia, codigo").fetchall()
+    except sqlite3.OperationalError:
+        catalogo_raw = []
     familias = sorted({c["familia"] for c in catalogo_raw})
     catalogo_por_familia = {}
     for c in catalogo_raw:
-        catalogo_por_familia.setdefault(c["familia"], []).append(c)
+        catalogo_por_familia.setdefault(c["familia"], []).append({"codigo": c["codigo"], "nombre": c["nombre"]})
 
     return render_template("editar_proyecto.html", proyecto=proyecto, comunas=COMUNAS, elementos=elementos, familias=familias, catalogo=catalogo_por_familia)
 
@@ -1938,6 +1941,15 @@ def fichar_jornada():
             db.execute("INSERT INTO jornada (fecha, estado) VALUES (?,?)",
                        (fecha, accion))
         flash(f"Día marcado como {accion}", "ok")
+
+    elif accion == "trabajar":
+        if reg:
+            db.execute("UPDATE jornada SET estado = 'trabajado', entrada = NULL, salida = NULL WHERE fecha = ?",
+                       (fecha,))
+        else:
+            db.execute("INSERT INTO jornada (fecha, estado) VALUES (?,?)",
+                       (fecha, "trabajado"))
+        flash(f"Día marcado como trabajado. Ahora puedes fichar entrada/salida.", "ok")
 
     db.commit()
     return redirect(url_for("jornada"))

@@ -86,13 +86,24 @@
                     <button type="submit" style="padding:4px 8px;font-size:11px;background:#8b5cf6;">Permiso</button>
                 </form>
                 {% endif %}
+
+                {% if d.registro and d.registro.estado in ('feriado', 'permiso') %}
+                <form method="post" action="{{ url_for('fichar_jornada') }}" style="display:inline;">
+                    <input type="hidden" name="fecha" value="{{ d.fecha_str }}">
+                    <input type="hidden" name="accion" value="trabajar">
+                    <button type="submit" style="padding:4px 8px;font-size:11px;background:var(--accent);">Trabajar</button>
+                </form>
+                {% endif %}
             </div>
+
+            {% if not d.registro or d.registro.estado == 'trabajado' %}
             <form method="post" action="{{ url_for('editar_jornada') }}" style="margin-top:6px;display:flex;gap:4px;flex-wrap:wrap;">
                 <input type="hidden" name="fecha" value="{{ d.fecha_str }}">
                 <input type="time" name="entrada" value="{{ d.registro.entrada if d.registro else '' }}" style="width:70px;font-size:11px;padding:2px;">
                 <input type="time" name="salida" value="{{ d.registro.salida if d.registro else '' }}" style="width:70px;font-size:11px;padding:2px;">
                 <button type="submit" style="padding:2px 6px;font-size:11px;">Guardar</button>
             </form>
+            {% endif %}
         </div>
         {% endfor %}
     </div>

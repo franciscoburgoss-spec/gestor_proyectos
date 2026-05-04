@@ -4,6 +4,10 @@
 
 <h1>Configuración</h1>
 
+<p style="color:var(--text-muted); font-size:13px; margin-bottom:12px;">
+    Tres secciones: Módulos, Tipos de Documento y Catálogo de Elementos. Desplaza hacia abajo si no ves todo.
+</p>
+
 <div class="grid">
 
     <section class="card">
@@ -48,6 +52,39 @@
                     <td class="mono">{{ t.codigo }}</td>
                     <td>{{ t.nombre }}</td>
                     <td><span class="badge {{ 'activo' if t.activo else 'inactivo' }}">{{ 'Activo' if t.activo else 'Inactivo' }}</span></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </section>
+
+    <section class="card">
+        <h2>Catálogo de Elementos</h2>
+        <form action="{{ url_for('agregar_elemento_catalogo') }}" method="POST" class="form-inline">
+            <select name="familia" required style="min-width:100px;">
+                <option value="">Familia</option>
+                <option value="VIV">VIV</option>
+                <option value="REC">REC</option>
+                <option value="OBR">OBR</option>
+                <option value="URB">URB</option>
+                <option value="TER">TER</option>
+                <option value="GEN">GEN</option>
+            </select>
+            <input type="text" name="codigo" placeholder="Código" maxlength="5" required>
+            <input type="text" name="nombre" placeholder="Nombre" required>
+            <button type="submit">Agregar</button>
+        </form>
+
+        <table class="table compact">
+            <thead>
+                <tr><th>Familia</th><th>Código</th><th>Nombre</th></tr>
+            </thead>
+            <tbody>
+                {% for c in catalogo %}
+                <tr>
+                    <td><span class="badge {{ c.familia }}">{{ c.familia }}</span></td>
+                    <td class="mono">{{ c.codigo }}</td>
+                    <td>{{ c.nombre }}</td>
                 </tr>
                 {% endfor %}
             </tbody>

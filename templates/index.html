@@ -72,7 +72,7 @@
 
 <section class="card">
     <h2>Crear nuevo proyecto</h2>
-    <form action="{{ url_for('crear_proyecto') }}" method="POST" class="form-stacked" style="max-width:600px;">
+    <form action="{{ url_for('crear_proyecto') }}" method="POST" class="form-stacked">
         <div class="row">
             <input type="text" name="acronimo" placeholder="Acrónimo (5 chars max)" maxlength="5" required>
             <input type="text" name="nombre" placeholder="Nombre del proyecto" required>
@@ -137,7 +137,7 @@
                 <td>{{ p.nombre }}</td>
                 <td>
                     {% if p.comuna %}
-                        {{ p.comuna }}{% if p.zona_sismica %} <span class="small">(Z{{ p.zona_sismica }})</span>{% endif %}
+                        {{ p.comuna }}
                     {% else %}
                         <span class="small">—</span>
                     {% endif %}
