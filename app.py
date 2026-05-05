@@ -117,9 +117,19 @@ def _email_b_c_body(tipo, proyecto, sol, revisiones, docs_pendientes, resumen):
     rechazados = [r for r in revisiones if r["resultado"] == "rechazado"]
 
     lines = []
-    lines.append("Estimado Coordinador,")
+    lines.append("Estimada Karen,")
     lines.append("")
-    lines.append(f"Adjunto resultado de la {tipo} realizada al proyecto {_proyecto_nombre_comuna(proyecto)}.")
+    # Texto introductorio según tipo de revisión
+    if tipo == "CHK":
+        lines.append(f"Informo resultado de la aplicación del Checklist al proyecto {_proyecto_nombre_comuna(proyecto)}.")
+    elif tipo == "R01":
+        lines.append(f"Informo resultado de la aplicación de la Revisión 01 al proyecto {_proyecto_nombre_comuna(proyecto)}.")
+    elif tipo == "R02":
+        lines.append(f"Informo resultado de la aplicación de la Revisión 02 al proyecto {_proyecto_nombre_comuna(proyecto)}.")
+    elif tipo == "REX":
+        lines.append(f"Informo resultado de la aplicación de la Revisión Extraordinaria al proyecto {_proyecto_nombre_comuna(proyecto)}.")
+    else:
+        lines.append(f"Informo resultado de la aplicación de la {tipo} al proyecto {_proyecto_nombre_comuna(proyecto)}.")
     lines.append("")
 
     # Resumen Ejecutivo
@@ -136,7 +146,8 @@ def _email_b_c_body(tipo, proyecto, sol, revisiones, docs_pendientes, resumen):
     lines.append("DOCUMENTOS APROBADOS")
     if aprobados:
         for r in aprobados:
-            lines.append(f"- {r['codigo_completo']}")
+            titulo = _row_get(r, "titulo") or "Sin título"
+            lines.append(f"- {r['codigo_completo']} — {titulo}")
     else:
         lines.append("Ninguno.")
     lines.append("")
@@ -145,8 +156,9 @@ def _email_b_c_body(tipo, proyecto, sol, revisiones, docs_pendientes, resumen):
     lines.append("DOCUMENTOS OBSERVADOS")
     if observados:
         for r in observados:
+            titulo = _row_get(r, "titulo") or "Sin título"
             comentario = _row_get(r, "comentarios") or "Sin comentarios"
-            lines.append(f"- {r['codigo_completo']}: {comentario}")
+            lines.append(f"- {r['codigo_completo']} — {titulo}: {comentario}")
     else:
         lines.append("Ninguno.")
     lines.append("")
@@ -155,8 +167,9 @@ def _email_b_c_body(tipo, proyecto, sol, revisiones, docs_pendientes, resumen):
     lines.append("DOCUMENTOS RECHAZADOS")
     if rechazados:
         for r in rechazados:
+            titulo = _row_get(r, "titulo") or "Sin título"
             comentario = _row_get(r, "comentarios") or "Sin comentarios"
-            lines.append(f"- {r['codigo_completo']}: {comentario}")
+            lines.append(f"- {r['codigo_completo']} — {titulo}: {comentario}")
     else:
         lines.append("Ninguno.")
     lines.append("")
@@ -170,57 +183,6 @@ def _email_b_c_body(tipo, proyecto, sol, revisiones, docs_pendientes, resumen):
         lines.append("Ninguno.")
     lines.append("")
 
-    # Siguiente Paso (condicional según tipo y resultado)
-    lines.append("SIGUIENTE PASO")
-    n_rech = len(rechazados)
-    n_obs = len(observados)
-    n_pend = len(docs_pendientes)
-
-    if tipo == "CHK":
-        if n_rech > 0:
-            lines.append("Se solicita corregir los documentos rechazados y presentarlos en la Revisión Excepcional (REX).")
-        elif n_obs > 0:
-            lines.append("Se solicita corregir los documentos observados y presentarlos en la próxima iteración de Checklist.")
-        elif n_pend > 0:
-            lines.append("Se solicita incluir los documentos pendientes en la próxima iteración de Checklist.")
-        else:
-            lines.append("Todos los documentos fueron aprobados en esta revisión.")
-            lines.append("El proyecto queda a la espera de la solicitud de Revisión 01 (R01).")
-
-    elif tipo == "R01":
-        if n_rech > 0:
-            lines.append("Se solicita corregir los documentos rechazados y presentarlos en la Revisión 02 (R02).")
-        elif n_obs > 0:
-            lines.append("Se solicita corregir los documentos observados y presentarlos en la Revisión 02 (R02).")
-        elif n_pend > 0:
-            lines.append("Se solicita incluir los documentos pendientes en la Revisión 02 (R02).")
-        else:
-            lines.append("Todos los documentos fueron aprobados en esta revisión.")
-            lines.append("El proyecto queda a la espera de la solicitud de Revisión 02 (R02).")
-
-    elif tipo == "R02":
-        if n_rech > 0:
-            lines.append("Se solicita corregir los documentos rechazados y presentarlos en la Revisión Excepcional (REX).")
-        elif n_obs > 0:
-            lines.append("Se solicita corregir los documentos observados y presentarlos en la Revisión Excepcional (REX).")
-        elif n_pend > 0:
-            lines.append("Se solicita incluir los documentos pendientes en la Revisión Excepcional (REX).")
-        else:
-            lines.append("Todos los documentos fueron aprobados en esta revisión.")
-            lines.append("El proyecto está listo para el cierre del proceso.")
-
-    elif tipo == "REX":
-        if n_obs > 0:
-            lines.append("El proyecto presenta documentos observados en la Revisión Excepcional.")
-            lines.append("Se procede al rechazo del proyecto.")
-        elif n_rech > 0:
-            lines.append("Se solicita corregir los documentos rechazados.")
-            lines.append("Dada la naturaleza de la Revisión Excepcional, el proyecto se considera no viable hasta nueva presentación completa.")
-        else:
-            lines.append("Todos los documentos fueron aprobados en la Revisión Excepcional.")
-            lines.append("El proyecto puede proceder al cierre del proceso.")
-
-    lines.append("")
     lines.append("Saludos cordiales,")
     lines.append("")
     lines.append(USER_NAME)
