@@ -111,6 +111,8 @@ h3 {
     border-radius: 8px;
     padding: 20px;
     margin-bottom: 20px;
+    overflow: hidden;
+    min-width: 0;
 }
 
 .danger-zone {
@@ -207,6 +209,7 @@ label {
     width: 100%;
     border-collapse: collapse;
     font-size: 13px;
+    table-layout: fixed;
 }
 
 .table th {
@@ -218,12 +221,17 @@ label {
     font-size: 11px;
     text-transform: uppercase;
     letter-spacing: 0.5px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .table td {
     padding: 10px 12px;
     border-bottom: 1px solid var(--border);
     vertical-align: top;
+    overflow-wrap: break-word;
+    word-break: break-word;
 }
 
 .table tr:hover {
@@ -232,6 +240,26 @@ label {
 
 .table.compact th, .table.compact td {
     padding: 8px 10px;
+}
+
+/* Column widths for tables */
+.col-code { width: 36%; }
+.col-fam   { width: 18%; }
+.col-title { width: 26%; }
+.col-state { width: 12%; }
+.col-action { width: 8%; text-align: center; }
+
+.col-type  { width: 12%; }
+.col-iter  { width: 8%; }
+.col-in    { width: 18%; }
+.col-out   { width: 18%; }
+.col-sol-state { width: 14%; }
+.col-sol-action { width: 30%; }
+
+/* Table scroll wrapper for overflow */
+.table-wrap {
+    overflow-x: auto;
+    max-width: 100%;
 }
 
 /* Badges */
@@ -339,12 +367,23 @@ label {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
     gap: 20px;
+    min-width: 0;
+}
+
+.grid > * {
+    min-width: 0;
+}
+
+.grid-stack {
+    grid-template-columns: 1fr;
 }
 
 /* Mono / code */
 .mono {
     font-family: "SF Mono", Monaco, "Cascadia Code", monospace;
     font-size: 12px;
+    word-break: break-all;
+    overflow-wrap: break-word;
 }
 
 .small {

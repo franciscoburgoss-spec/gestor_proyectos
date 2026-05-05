@@ -78,7 +78,7 @@
 </div>
 {% endif %}
 
-<div class="grid">
+<div class="grid grid-stack">
 
     <!-- Documentos -->
     <section class="card">
@@ -154,9 +154,10 @@
             <span style="font-size:12px; color:var(--text-muted); margin-left:auto;">{{ documentos|length }} documento(s)</span>
         </form>
 
+        <div class="table-wrap">
         <table class="table compact">
             <thead>
-                <tr><th>Código</th><th>Fam-Elemento</th><th>Título</th><th>Estado</th><th></th></tr>
+                <tr><th class="col-code">Código</th><th class="col-fam">Fam-Elemento</th><th class="col-title">Título</th><th class="col-state">Estado</th><th class="col-action"></th></tr>
             </thead>
             <tbody>
                 {% for d in documentos %}
@@ -170,6 +171,7 @@
                 {% endfor %}
             </tbody>
         </table>
+        </div>
         {% else %}
         <p class="empty">Sin documentos registrados.</p>
         {% endif %}
@@ -198,9 +200,10 @@
         </form>
 
         {% if solicitudes %}
+        <div class="table-wrap">
         <table class="table compact">
             <thead>
-                <tr><th>Tipo</th><th>Iter</th><th>Entrada</th><th>Límite</th><th>Estado</th><th></th></tr>
+                <tr><th class="col-type">Tipo</th><th class="col-iter">Iter</th><th class="col-in">Entrada</th><th class="col-out">Límite</th><th class="col-sol-state">Estado</th><th class="col-sol-action"></th></tr>
             </thead>
             <tbody>
                 {% for s in solicitudes %}
@@ -219,6 +222,7 @@
                 {% endfor %}
             </tbody>
         </table>
+        </div>
         {% else %}
         <p class="empty">Sin solicitudes registradas.</p>
         {% endif %}
@@ -228,6 +232,7 @@
     <section class="card">
         <h2>Actas de revisión</h2>
         {% if actas %}
+        <div class="table-wrap">
         <table class="table compact">
             <thead>
                 <tr><th>Fecha</th><th>Tipo</th><th>Solicitud</th><th></th></tr>
@@ -249,6 +254,7 @@
                 {% endfor %}
             </tbody>
         </table>
+        </div>
         {% else %}
         <p class="empty">Sin actas registradas. Se generan automáticamente al completar una solicitud.</p>
         {% endif %}
