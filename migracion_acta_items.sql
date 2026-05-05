@@ -1,131 +1,80 @@
--- Migracion: poblar tabla acta_items con items de los formatos oficiales
+-- Migracion: poblar tabla acta_items con items de los formatos OFICIALES
+-- Fuente de verdad: capturas de pantalla del acta de Estructuras del usuario
 -- Ejecutar una sola vez despues de crear la tabla acta_items
 
 -- ============================================
--- EST (Estructuras)
+-- EST (Estructuras) — Secciones A-J: PLANOS
+-- Tipo de documento: PLN
 -- ============================================
 INSERT INTO acta_items (modulo, seccion, codigo, descripcion, tipo_doc, orden) VALUES
-('EST', 'Planimetria', 'A.1', 'Senala distancia a linderos.', 'PLN', 1),
-('EST', 'Planimetria', 'A.2', 'Escala.', 'PLN', 2),
-('EST', 'Planimetria', 'A.3', 'Norte.', 'PLN', 3),
-('EST', 'Planimetria', 'A.4', 'Linderos.', 'PLN', 4),
-('EST', 'Planimetria', 'A.5', 'Piletas.', 'PLN', 5),
-('EST', 'Planimetria', 'A.6', 'Vias de acceso.', 'PLN', 6),
-('EST', 'Planimetria', 'A.7', 'Croquis/Planta de ubicacion.', 'PLN', 7),
-('EST', 'Planimetria', 'A.8', 'Croquis de cortes geologicos.', 'PLN', 8),
-('EST', 'Planimetria', 'A.9', 'Senala cotas.', 'PLN', 9),
-('EST', 'Planimetria', 'A.10', 'Acotaciones generales.', 'PLN', 10),
-('EST', 'Estructura Hormigon', 'B.1', 'Muros de hormigon armado.', 'PLE', 11),
-('EST', 'Estructura Hormigon', 'B.2', 'Muros de hormigon en masa.', 'PLE', 12),
-('EST', 'Estructura Hormigon', 'B.3', 'Elementos de entramado.', 'PLE', 13),
-('EST', 'Estructura Hormigon', 'C.1', 'Elementos de acero.', 'PLE', 14),
-('EST', 'Estructura Hormigon', 'C.2', 'Elementos de madera.', 'PLE', 15),
-('EST', 'Estructura Hormigon', 'C.3', 'Elementos de hormigon.', 'PLE', 16),
-('EST', 'Estructura Hormigon', 'C.4', 'Elementos de mamposteria.', 'PLE', 17),
-('EST', 'Estructura Hormigon', 'C.5', 'Elementos de fibrocemento.', 'PLE', 18),
-('EST', 'Estructura Hormigon', 'D.1', 'Elementos con dos o mas familias en planta.', 'PLE', 19),
-('EST', 'Estructura Hormigon', 'D.2', 'Elementos con dos o mas familias en elevaciones.', 'PLE', 20),
-('EST', 'Estructura Mamposteria', 'E.1', 'Mamposteria confinada.', 'PLE', 21),
-('EST', 'Estructura Mamposteria', 'E.2', 'Mamposteria reforzada.', 'PLE', 22),
-('EST', 'Estructura Mamposteria', 'E.3', 'Mamposteria simple.', 'PLE', 23),
-('EST', 'Estructura Mamposteria', 'E.4', 'Pandereta estructural.', 'PLE', 24),
-('EST', 'Estructura Mamposteria', 'E.5', 'Elementos con dos o mas familias en planta.', 'PLE', 25),
-('EST', 'Estructura Mamposteria', 'E.6', 'Elementos con dos o mas familias en elevaciones.', 'PLE', 26),
-('EST', 'Estructura Mamposteria', 'E.7', 'Elementos de entramado y/o cubierta con 2 o mas familias.', 'PLE', 27),
-('EST', 'Estructura Mamposteria', 'E.8', 'Elementos de entramado y/o cubierta con 2 o mas familias.', 'PLE', 28),
-('EST', 'Estructura Acero', 'F.1', 'Perfiles de acero (vigas, columnas, diagonales, montantes, correas, correas-riostra, etc.).', 'PLE', 29),
-('EST', 'Estructura Acero', 'F.2', 'Tipo de conexion.', 'PLE', 30),
-('EST', 'Estructura Acero', 'F.3', 'Uniones en pendientes.', 'PLE', 31),
-('EST', 'Estructura Acero', 'F.4', 'Soportes y/o vigas de alma llena.', 'PLE', 32),
-('EST', 'Estructura Acero', 'F.5', 'Elementos con dos o mas familias.', 'PLE', 33),
-('EST', 'Estructura Acero', 'F.6', 'Elementos con dos o mas familias.', 'PLE', 34),
-('EST', 'Estructura Acero', 'F.7', 'Detalles de contraventeo.', 'PLE', 35),
-('EST', 'Estructura Acero', 'F.8', 'Detalles de base.', 'PLE', 36),
-('EST', 'Estructura Acero', 'F.9', 'Elementos con dos o mas familias.', 'PLE', 37),
-('EST', 'Estructura Acero', 'F.10', 'Elementos con dos o mas familias.', 'PLE', 38),
-('EST', 'Estructura Acero', 'G.1', 'Tipo y trazado de canalones.', 'PLE', 39),
-('EST', 'Estructura Acero', 'G.2', 'Bajadas.', 'PLE', 40),
-('EST', 'Fundaciones', 'I.1', 'Generalidades (fundaciones).', 'PLF', 41),
-('EST', 'Fundaciones', 'I.2', 'Armaduras de fundaciones y/o muros de contencion.', 'PLF', 42),
-('EST', 'Fundaciones', 'I.3', 'Armaduras minimas.', 'PLF', 43),
-('EST', 'Techumbre', 'J.1', 'Generalidades.', 'PLE', 44),
-('EST', 'Techumbre', 'J.2', 'Elementos de entramado (de madera y/o acero).', 'PLE', 45),
-('EST', 'Techumbre', 'J.3', 'Elementos de cubierta (fieltro-asfaltico, tejas, zinc, etc.).', 'PLE', 46),
-('EST', 'Techumbre', 'J.4', 'Elementos con dos o mas familias en cubierta.', 'PLE', 47),
-('EST', 'Techumbre', 'J.5', 'Elementos con dos o mas familias en entramado.', 'PLE', 48),
-('EST', 'Memoria Calculo', 'K.1', 'Descripcion del proyecto (MEM).', 'MEM', 49),
-('EST', 'Memoria Calculo', 'K.2', 'Normativa vigente y parametros de diseno.', 'MEM', 50),
-('EST', 'Memoria Calculo', 'K.3', 'Formas estructurales, sistemas estructurales y materiales empleados.', 'MEM', 51),
-('EST', 'Memoria Calculo', 'K.4', 'Descripcion de la accion de las cargas.', 'MEM', 52),
-('EST', 'Memoria Calculo', 'K.5', 'Analisis estructural (metodos empleados y programas utilizados).', 'MEM', 53),
-('EST', 'Memoria Calculo', 'K.6', 'Especificaciones tecnicas.', 'MEM', 54),
-('EST', 'Memoria Calculo', 'L.1', 'Resumen de cargas de gravedad y cargas sismicas.', 'MEM', 55),
-('EST', 'Memoria Calculo', 'M.1', 'Combinaciones de carga consideradas.', 'MEM', 56),
-('EST', 'Memoria Calculo', 'N.1', 'Desplazamientos laterales maximos.', 'MEM', 57),
-('EST', 'Memoria Calculo', 'O.1', 'Desplazamientos verticales maximos.', 'MEM', 58),
-('EST', 'Memoria Calculo', 'P.1', 'Procedimiento constructivo general.', 'MEM', 59),
-('EST', 'Memoria Calculo', 'P.2', 'Detalles de control de calidad.', 'MEM', 60),
-('EST', 'Memoria Calculo', 'Q.1', 'Dimensiones de la seccion.', 'MEM', 61),
-('EST', 'Memoria Calculo', 'Q.2', 'Elementos de acero.', 'MEM', 62),
-('EST', 'Memoria Calculo', 'Q.3', 'Elementos de hormigon.', 'MEM', 63),
-('EST', 'Especificaciones', 'R.1', 'Normas chilenas.', 'ESP', 64),
-('EST', 'Especificaciones', 'R.2', 'Normas internacionales.', 'ESP', 65),
-('EST', 'Pliegos', 'S.1', 'Base general.', 'PLZ', 66);
+('EST', 'A. Comparativa con Arquitectura', 'A.1', 'Planos deben estar en ejes y modulos acorde a los planos arquitectonicos.', 'PLN', 1),
+('EST', 'A. Comparativa con Arquitectura', 'A.2', 'Verificacion en terreno de ubicacion de estructura en relacion a limites de terreno, linderos y vias de acceso.', 'PLN', 2),
+('EST', 'A. Comparativa con Arquitectura', 'A.3', 'Trazo y ubicacion en terreno en relacion con planos aprobados por el Servicio de Vivienda y Urbanizacion (Se deja constancia de que el trazado se realizo aprobado por el SERVIU).', 'PLN', 3),
+('EST', 'A. Comparativa con Arquitectura', 'A.4', 'Tabiqueria y distanciamiento de tabiques, division de ambientes en planta y en elevaciones.', 'PLN', 4),
+('EST', 'A. Comparativa con Arquitectura', 'A.5', 'Ventilaciones.', 'PLN', 5);
+
+INSERT INTO acta_items (modulo, seccion, codigo, descripcion, tipo_doc, orden) VALUES
+('EST', 'B. Planta de fundaciones y detalles', 'B.1', 'Cotas y dimensiones de fundaciones y/o elementos constructivos.', 'PLN', 6),
+('EST', 'B. Planta de fundaciones y detalles', 'B.2', 'Union de fundaciones y/o elementos constructivos entre si.', 'PLN', 7),
+('EST', 'B. Planta de fundaciones y detalles', 'B.3', 'Secciones, detalles y dimensiones de fundaciones y/o elementos constructivos.', 'PLN', 8);
+
+INSERT INTO acta_items (modulo, seccion, codigo, descripcion, tipo_doc, orden) VALUES
+('EST', 'C. Secciones', 'C.1', 'Espesor, armaduras, distanciamiento de armadura, dobleces y enfierraduras en elementos de estructura, segun normativa vigente.', 'PLN', 9);
+
+INSERT INTO acta_items (modulo, seccion, codigo, descripcion, tipo_doc, orden) VALUES
+('EST', 'D. Planta de Estructuras', 'D.1', 'Ejes, armaduras, identificacion de espesores de elementos, enfierraduras y tabiqueria en elementos estructurales, segun normativa vigente.', 'PLN', 10);
+
+INSERT INTO acta_items (modulo, seccion, codigo, descripcion, tipo_doc, orden) VALUES
+('EST', 'E. Planta de losas', 'E.1', 'Armaduras de refuerzo, dobleces, identificacion y ubicacion de losas segun normativa vigente.', 'PLN', 11);
+
+INSERT INTO acta_items (modulo, seccion, codigo, descripcion, tipo_doc, orden) VALUES
+('EST', 'F. Planta de techumbre y detalles', 'F.1', 'Cerchas, perfiles estructurales, elementos y tipo de conexiones en elementos de techumbre.', 'PLN', 12),
+('EST', 'F. Planta de techumbre y detalles', 'F.2', 'Elevaciones de ejes de techumbre y elementos.', 'PLN', 13),
+('EST', 'F. Planta de techumbre y detalles', 'F.3', 'Detalles constructivos y enfierraduras de techumbre.', 'PLN', 14);
+
+INSERT INTO acta_items (modulo, seccion, codigo, descripcion, tipo_doc, orden) VALUES
+('EST', 'G. Elevaciones de ejes estructurales', 'G.1', 'Muros, armadura, enfierraduras y dimensiones, segun normativa vigente.', 'PLN', 15);
+
+INSERT INTO acta_items (modulo, seccion, codigo, descripcion, tipo_doc, orden) VALUES
+('EST', 'H. Planos de escalera y detalles', 'H.1', 'Materialidad, dimensiones, elementos y tipo de uniones de escalera, segun normativa vigente.', 'PLN', 16);
+
+INSERT INTO acta_items (modulo, seccion, codigo, descripcion, tipo_doc, orden) VALUES
+('EST', 'I. Detalles constructivos', 'I.1', 'Amarras en elementos de hormigon.', 'PLN', 17),
+('EST', 'I. Detalles constructivos', 'I.2', 'Estribos.', 'PLN', 18),
+('EST', 'I. Detalles constructivos', 'I.3', 'Juntas en elementos de estructura y de construccion.', 'PLN', 19),
+('EST', 'I. Detalles constructivos', 'I.4', 'Enfierraduras y uniones.', 'PLN', 20),
+('EST', 'I. Detalles constructivos', 'I.5', 'Alfeizares.', 'PLN', 21);
+
+INSERT INTO acta_items (modulo, seccion, codigo, descripcion, tipo_doc, orden) VALUES
+('EST', 'J. Especificaciones tecnicas de planos', 'J.1', 'Materialidad de elementos de estructura, emplazamiento, zona sismica, suelo, acero, pernos, barras, tipos de fundaciones, resistencia caracteristica de hormigon y cerchas.', 'PLN', 23);
 
 -- ============================================
--- MDS (Mecanica de Suelos)
+-- EST (Estructuras) — Secciones K-Q: MEMORIAS
+-- Tipo de documento: MEM
 -- ============================================
 INSERT INTO acta_items (modulo, seccion, codigo, descripcion, tipo_doc, orden) VALUES
-('MDS', 'Informe', 'A.1', 'Senala distancia a linderos (informe).', 'IMS', 1),
-('MDS', 'Informe', 'A.2', 'Croquis/Planta de ubicacion.', 'IMS', 2),
-('MDS', 'Informe', 'A.3', 'Puntos de exploracion.', 'IMS', 3),
-('MDS', 'Informe', 'A.4', 'Informes de laboratorio.', 'IMS', 4),
-('MDS', 'Informe', 'A.5', 'Campana.', 'IMS', 5),
-('MDS', 'Informe', 'A.6', 'Senala cotas (informe).', 'IMS', 6),
-('MDS', 'Informe', 'A.7', 'Acotaciones generales (informe).', 'IMS', 7),
-('MDS', 'Informe', 'A.8', 'Tipo de suelo y estratigrafia.', 'IMS', 8),
-('MDS', 'Informe', 'A.9', 'Capa portante de terreno.', 'IMS', 9),
-('MDS', 'Informe', 'A.10', 'Nivel de napas.', 'IMS', 10),
-('MDS', 'Informe', 'A.11', 'Recomendaciones para diseno.', 'IMS', 11),
-('MDS', 'Laboratorio', 'B.1', 'Contenido de humedad (MC).', 'ENL', 12),
-('MDS', 'Laboratorio', 'B.2', 'Analisis granulometrico.', 'ENL', 13),
-('MDS', 'Laboratorio', 'B.3', 'Limites de consistencia (LL, LP, IP).', 'ENL', 14),
-('MDS', 'Laboratorio', 'B.4', 'Densidad in situ.', 'ENL', 15),
-('MDS', 'Laboratorio', 'B.5', 'Proctor modificado (DMM, OMM).', 'ENL', 16),
-('MDS', 'Laboratorio', 'B.6', 'Proctor estandar (DME, OME).', 'ENL', 17),
-('MDS', 'Laboratorio', 'B.7', 'CBR (California Bearing Ratio).', 'ENL', 18),
-('MDS', 'Laboratorio', 'B.8', 'Carga de rotura (CR).', 'ENL', 19);
+('EST', 'K. Descripcion del proyecto', 'K.1', 'Descripcion general del proyecto, materialidad y emplazamiento.', 'MEM', 24);
 
--- ============================================
--- HAB (Habilitacion)
--- ============================================
 INSERT INTO acta_items (modulo, seccion, codigo, descripcion, tipo_doc, orden) VALUES
-('HAB', 'Planta', 'A.1', 'Descripcion de la planta.', 'PLH', 1),
-('HAB', 'Planta', 'A.2', 'Indicacion de funcion de los locales.', 'PLH', 2),
-('HAB', 'Planta', 'A.3', 'Superficies.', 'PLH', 3),
-('HAB', 'Planta', 'A.4', 'Dimensiones de los muros.', 'PLH', 4),
-('HAB', 'Planta', 'A.5', 'Dimensiones de los tabiques.', 'PLH', 5),
-('HAB', 'Planta', 'A.6', 'Dimensiones de los vanos.', 'PLH', 6),
-('HAB', 'Planta', 'A.7', 'Escalas de los planos.', 'PLH', 7),
-('HAB', 'Planta', 'A.8', 'Senala cotas.', 'PLH', 8),
-('HAB', 'Planta', 'A.9', 'Indica distancia a linderos.', 'PLH', 9),
-('HAB', 'Planta', 'A.10', 'Indica distancias a via publica.', 'PLH', 10),
-('HAB', 'Planta', 'A.11', 'Dimensiones de las ventanas.', 'PLH', 11),
-('HAB', 'Planta', 'A.12', 'Dimensiones de las puertas.', 'PLH', 12),
-('HAB', 'Cortes', 'B.1', 'Descripcion de cortes.', 'CTH', 13),
-('HAB', 'Cortes', 'B.2', 'Elementos del corte.', 'CTH', 14),
-('HAB', 'Cortes', 'B.3', 'Escala.', 'CTH', 15),
-('HAB', 'Cortes', 'B.4', 'Cotas.', 'CTH', 16),
-('HAB', 'Elevaciones', 'C.1', 'Descripcion de las elevaciones.', 'ELH', 17),
-('HAB', 'Elevaciones', 'C.2', 'Elementos de las elevaciones.', 'ELH', 18),
-('HAB', 'Elevaciones', 'C.3', 'Escala.', 'ELH', 19),
-('HAB', 'Elevaciones', 'C.4', 'Cotas.', 'ELH', 20),
-('HAB', 'Detalles', 'D.1', 'Descripcion de detalles.', 'DTH', 21),
-('HAB', 'Detalles', 'D.2', 'Elementos de los detalles.', 'DTH', 22),
-('HAB', 'Detalles', 'D.3', 'Escala.', 'DTH', 23),
-('HAB', 'Detalles', 'D.4', 'Cotas.', 'DTH', 24),
-('HAB', 'Memoria', 'E.1', 'Descripcion general.', 'MHB', 25),
-('HAB', 'Memoria', 'E.2', 'Normativa vigente.', 'MHB', 26),
-('HAB', 'Memoria', 'E.3', 'Parametros de diseno.', 'MHB', 27),
-('HAB', 'Especificaciones', 'F.1', 'Materiales.', 'ESB', 28),
-('HAB', 'Especificaciones', 'F.2', 'Acabados.', 'ESB', 29);
+('EST', 'L. Normativa vigente', 'L.1', 'Incluye y cita normativa vigente.', 'MEM', 25);
+
+INSERT INTO acta_items (modulo, seccion, codigo, descripcion, tipo_doc, orden) VALUES
+('EST', 'M. Coherencia del proyecto', 'M.1', 'Coherente con otros documentos del proyecto.', 'MEM', 26);
+
+INSERT INTO acta_items (modulo, seccion, codigo, descripcion, tipo_doc, orden) VALUES
+('EST', 'N. Cargas, sobrecargas y tensiones admisibles', 'N.1', 'Cargas de techumbre segun normativa vigente.', 'MEM', 27),
+('EST', 'N. Cargas, sobrecargas y tensiones admisibles', 'N.2', 'Cargas de techumbre solar segun normativa vigente.', 'MEM', 28);
+
+INSERT INTO acta_items (modulo, seccion, codigo, descripcion, tipo_doc, orden) VALUES
+('EST', 'O. Tabiques divisores', 'O.1', 'Consideracion de tabiques divisores en el analisis estructural.', 'MEM', 29);
+
+INSERT INTO acta_items (modulo, seccion, codigo, descripcion, tipo_doc, orden) VALUES
+('EST', 'P. Entrepisos de madera o acero', 'P.1', 'Entrepisos de madera o acero.', 'MEM', 30);
+
+INSERT INTO acta_items (modulo, seccion, codigo, descripcion, tipo_doc, orden) VALUES
+('EST', 'Q. Calculo de elementos estructurales', 'Q.1', 'Madera.', 'MEM', 31),
+('EST', 'Q. Calculo de elementos estructurales', 'Q.2', 'Acero.', 'MEM', 32),
+('EST', 'Q. Calculo de elementos estructurales', 'Q.3', 'Hormigon.', 'MEM', 33),
+('EST', 'Q. Calculo de elementos estructurales', 'Q.4', 'Albanileria.', 'MEM', 34),
+('EST', 'Q. Calculo de elementos estructurales', 'Q.5', 'Fundacion.', 'MEM', 35);
+lculo de elementos estructurales', 'Q.

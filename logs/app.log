@@ -1,0 +1,83 @@
+2026-05-04 23:45:25,238 ERROR [/Volumes/MEM EXT/proyecto_ingenieria/.venv/lib/python3.14/site-packages/flask/app.py:875] Exception on /config [GET]
+Traceback (most recent call last):
+  File "/Volumes/MEM EXT/proyecto_ingenieria/.venv/lib/python3.14/site-packages/flask/app.py", line 1511, in wsgi_app
+    response = self.full_dispatch_request()
+  File "/Volumes/MEM EXT/proyecto_ingenieria/.venv/lib/python3.14/site-packages/flask/app.py", line 919, in full_dispatch_request
+    rv = self.handle_user_exception(e)
+  File "/Volumes/MEM EXT/proyecto_ingenieria/.venv/lib/python3.14/site-packages/flask/app.py", line 917, in full_dispatch_request
+    rv = self.dispatch_request()
+  File "/Volumes/MEM EXT/proyecto_ingenieria/.venv/lib/python3.14/site-packages/flask/app.py", line 902, in dispatch_request
+    return self.ensure_sync(self.view_functions[rule.endpoint])(**view_args)  # type: ignore[no-any-return]
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^
+  File "/Volumes/MEM EXT/proyecto_ingenieria/app.py", line 865, in config
+    catalogo = db.execute("SELECT * FROM catalogo_elementos ORDER BY familia, codigo").fetchall()
+               ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+sqlite3.OperationalError: no such table: catalogo_elementos
+2026-05-04 23:45:29,699 ERROR [/Volumes/MEM EXT/proyecto_ingenieria/.venv/lib/python3.14/site-packages/flask/app.py:875] Exception on /config [GET]
+Traceback (most recent call last):
+  File "/Volumes/MEM EXT/proyecto_ingenieria/.venv/lib/python3.14/site-packages/flask/app.py", line 1511, in wsgi_app
+    response = self.full_dispatch_request()
+  File "/Volumes/MEM EXT/proyecto_ingenieria/.venv/lib/python3.14/site-packages/flask/app.py", line 919, in full_dispatch_request
+    rv = self.handle_user_exception(e)
+  File "/Volumes/MEM EXT/proyecto_ingenieria/.venv/lib/python3.14/site-packages/flask/app.py", line 917, in full_dispatch_request
+    rv = self.dispatch_request()
+  File "/Volumes/MEM EXT/proyecto_ingenieria/.venv/lib/python3.14/site-packages/flask/app.py", line 902, in dispatch_request
+    return self.ensure_sync(self.view_functions[rule.endpoint])(**view_args)  # type: ignore[no-any-return]
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^
+  File "/Volumes/MEM EXT/proyecto_ingenieria/app.py", line 865, in config
+    catalogo = db.execute("SELECT * FROM catalogo_elementos ORDER BY familia, codigo").fetchall()
+               ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+sqlite3.OperationalError: no such table: catalogo_elementos
+2026-05-04 23:45:35,282 ERROR [/Volumes/MEM EXT/proyecto_ingenieria/.venv/lib/python3.14/site-packages/flask/app.py:875] Exception on /config [GET]
+Traceback (most recent call last):
+  File "/Volumes/MEM EXT/proyecto_ingenieria/.venv/lib/python3.14/site-packages/flask/app.py", line 1511, in wsgi_app
+    response = self.full_dispatch_request()
+  File "/Volumes/MEM EXT/proyecto_ingenieria/.venv/lib/python3.14/site-packages/flask/app.py", line 919, in full_dispatch_request
+    rv = self.handle_user_exception(e)
+  File "/Volumes/MEM EXT/proyecto_ingenieria/.venv/lib/python3.14/site-packages/flask/app.py", line 917, in full_dispatch_request
+    rv = self.dispatch_request()
+  File "/Volumes/MEM EXT/proyecto_ingenieria/.venv/lib/python3.14/site-packages/flask/app.py", line 902, in dispatch_request
+    return self.ensure_sync(self.view_functions[rule.endpoint])(**view_args)  # type: ignore[no-any-return]
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^
+  File "/Volumes/MEM EXT/proyecto_ingenieria/app.py", line 865, in config
+    catalogo = db.execute("SELECT * FROM catalogo_elementos ORDER BY familia, codigo").fetchall()
+               ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+sqlite3.OperationalError: no such table: catalogo_elementos
+2026-05-05 01:02:43,789 ERROR [/Volumes/MEM EXT/proyecto_ingenieria/venv/lib/python3.14/site-packages/flask/app.py:875] Exception on /solicitud/1/completar [POST]
+Traceback (most recent call last):
+  File "/Volumes/MEM EXT/proyecto_ingenieria/venv/lib/python3.14/site-packages/flask/app.py", line 1511, in wsgi_app
+    response = self.full_dispatch_request()
+  File "/Volumes/MEM EXT/proyecto_ingenieria/venv/lib/python3.14/site-packages/flask/app.py", line 919, in full_dispatch_request
+    rv = self.handle_user_exception(e)
+  File "/Volumes/MEM EXT/proyecto_ingenieria/venv/lib/python3.14/site-packages/flask/app.py", line 917, in full_dispatch_request
+    rv = self.dispatch_request()
+  File "/Volumes/MEM EXT/proyecto_ingenieria/venv/lib/python3.14/site-packages/flask/app.py", line 902, in dispatch_request
+    return self.ensure_sync(self.view_functions[rule.endpoint])(**view_args)  # type: ignore[no-any-return]
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^
+  File "/Volumes/MEM EXT/proyecto_ingenieria/app.py", line 1213, in completar_solicitud
+    contenido_acta = generar_acta_md(proyecto, sol, revisiones, pendientes, resumen)
+  File "/Volumes/MEM EXT/proyecto_ingenieria/app.py", line 75, in generar_acta_md
+    lines.append(f"**Revisión:** {sol['tipo']} #{sol.get('numero_iteracion','')}  ")
+                                                 ^^^^^^^
+AttributeError: 'sqlite3.Row' object has no attribute 'get'
+2026-05-05 01:03:09,729 ERROR [/Volumes/MEM EXT/proyecto_ingenieria/venv/lib/python3.14/site-packages/flask/app.py:875] Exception on /solicitud/1/email [GET]
+Traceback (most recent call last):
+  File "/Volumes/MEM EXT/proyecto_ingenieria/venv/lib/python3.14/site-packages/flask/app.py", line 1511, in wsgi_app
+    response = self.full_dispatch_request()
+  File "/Volumes/MEM EXT/proyecto_ingenieria/venv/lib/python3.14/site-packages/flask/app.py", line 919, in full_dispatch_request
+    rv = self.handle_user_exception(e)
+  File "/Volumes/MEM EXT/proyecto_ingenieria/venv/lib/python3.14/site-packages/flask/app.py", line 917, in full_dispatch_request
+    rv = self.dispatch_request()
+  File "/Volumes/MEM EXT/proyecto_ingenieria/venv/lib/python3.14/site-packages/flask/app.py", line 902, in dispatch_request
+    return self.ensure_sync(self.view_functions[rule.endpoint])(**view_args)  # type: ignore[no-any-return]
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^
+  File "/Volumes/MEM EXT/proyecto_ingenieria/app.py", line 1417, in generar_email
+    contenido = generator(proyecto, sol, revisiones, docs_pendientes)
+  File "/Volumes/MEM EXT/proyecto_ingenieria/app.py", line 1265, in generar_email_chk
+    lines.append(f"He realizado el Checklist del proyecto {_proyecto_con_comuna(proyecto)} y el resultado arrojó lo siguiente:")
+                                                           ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^
+  File "/Volumes/MEM EXT/proyecto_ingenieria/app.py", line 1252, in _proyecto_con_comuna
+    comuna = proyecto.get("comuna")
+             ^^^^^^^^^^^^
+AttributeError: 'sqlite3.Row' object has no attribute 'get'
+2026-05-05 10:46:23,088 INFO [/Volumes/MEM EXT/proyecto_ingenieria/app.py:1388] Acta regenerada OK: solicitud 1
