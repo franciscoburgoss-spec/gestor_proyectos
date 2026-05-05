@@ -50,6 +50,10 @@
     <span class="badge completada">Solicitud completada</span>
     {% if acta %}
         <a href="{{ url_for('ver_acta', acta_id=acta.id) }}" class="btn-sm">📋 Ver acta</a>
+    {% else %}
+        <form action="{{ url_for('regenerar_acta', sol_id=sol.id) }}" method="POST" style="display:inline;">
+            <button type="submit" class="btn-sm" style="background:var(--warning);color:#fff;">🔄 Regenerar acta</button>
+        </form>
     {% endif %}
     <a href="{{ url_for('generar_email', sol_id=sol.id) }}" class="btn" style="background:#6c757d;">✉ Generar correo</a>
     <a href="{{ url_for('editar_solicitud', sol_id=sol.id) }}" class="btn" style="background:var(--warning);">✏️ Editar</a>

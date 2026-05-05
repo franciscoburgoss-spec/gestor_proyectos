@@ -65,7 +65,7 @@ def _actualizar_estado_flujo(proyecto_id, db):
         "UPDATE proyectos SET estado_flujo = ? WHERE id = ?",
         (nuevo, proyecto_id)
     )
-    db.commit()
+    # NOTA: no hacemos commit aquí; el commit único va al final de completar_solicitud
 
 
 def _row_get(row, key, default=None):
@@ -222,12 +222,12 @@ def generar_acta_md(proyecto, sol, revisiones, docs_pendientes, resumen):
 
 
 def guardar_acta(proyecto_id, sol_id, contenido_md, db):
-    """Guarda el acta en la tabla ACTAS."""
+    """Guarda el acta en la tabla ACTAS. El commit va al final de completar_solicitud."""
     db.execute(
         "INSERT INTO actas (proyecto_id, solicitud_id, tipo, contenido_resumen, fecha_generacion) VALUES (?,?,?,?,?)",
         (proyecto_id, sol_id, "auto", contenido_md, now_chile())
     )
-    db.commit()
+    # NOTA: no hacemos commit aquí; el commit único va al final de completar_solicitud
 
 
 # ──────────────────────────────────────────────────────────────
@@ -1332,10 +1332,64 @@ def completar_solicitud(sol_id):
     _actualizar_estado_flujo(sol["proyecto_id"], db)
 
     # Generar acta automática
-    contenido_acta = generar_acta_md(proyecto, sol, revisiones, pendientes, resumen)
-    guardar_acta(sol["proyecto_id"], sol_id, contenido_acta, db)
+    try:
+        contenido_acta = generar_acta_md(proyecto, sol, revisiones, pendientes, resumen)
+        guardar_acta(sol["proyecto_id"], sol_id, contenido_acta, db)
+        app.logger.info(f"Acta generada OK: solicitud {sol_id} ({sol['tipo']})")
+    except Exception as e:
+        app.logger.error(f"Error generando acta para solicitud {sol_id}: {e}")
+        flash(f"Error al generar el acta: {e}. Puedes regenerarla más tarde.", "err")
 
+    # Commit único: todo o nada
+    db.commit()
     flash("Acta de revisión generada automáticamente", "ok")
+
+    return redirect(url_for("ver_solicitud", sol_id=sol_id))
+
+
+@app.route("/solicitud/<int:sol_id>/regenerar_acta", methods=["POST"])
+def regenerar_acta(sol_id):
+    """Regenera el acta para una solicitud ya completada que quedó sin acta."""
+    db = get_db()
+    sol = db.execute("SELECT * FROM solicitudes WHERE id = ?", (sol_id,)).fetchone()
+    if not sol:
+        flash("Solicitud no encontrada", "err")
+        return redirect(url_for("index"))
+
+    if sol["estado"] != "completada":
+        flash("Solo se pueden regenerar actas de solicitudes completadas", "err")
+        return redirect(url_for("ver_solicitud", sol_id=sol_id))
+
+    proyecto = db.execute("SELECT * FROM proyectos WHERE id = ?", (sol["proyecto_id"],)).fetchone()
+
+    pendientes = db.execute("""
+        SELECT * FROM documentos d
+        WHERE d.proyecto_id = ? AND d.activo = 1 AND d.estado != 'aprobado'
+        AND d.id NOT IN (
+            SELECT documento_id FROM revisiones_aplicadas WHERE solicitud_id = ?
+        )
+    """, (sol["proyecto_id"], sol_id)).fetchall()
+
+    revisiones = db.execute("""
+        SELECT ra.*, d.codigo_completo, d.titulo
+        FROM revisiones_aplicadas ra
+        JOIN documentos d ON ra.documento_id = d.id
+        WHERE ra.solicitud_id = ?
+    """, (sol_id,)).fetchall()
+
+    resumen = {"aprobado": 0, "observado": 0, "rechazado": 0, "pendiente": len(pendientes)}
+    for r in revisiones:
+        resumen[r["resultado"]] = resumen.get(r["resultado"], 0) + 1
+
+    try:
+        contenido_acta = generar_acta_md(proyecto, sol, revisiones, pendientes, resumen)
+        guardar_acta(sol["proyecto_id"], sol_id, contenido_acta, db)
+        db.commit()
+        app.logger.info(f"Acta regenerada OK: solicitud {sol_id}")
+        flash("Acta regenerada correctamente", "ok")
+    except Exception as e:
+        app.logger.error(f"Error regenerando acta para solicitud {sol_id}: {e}")
+        flash(f"Error al regenerar el acta: {e}", "err")
 
     return redirect(url_for("ver_solicitud", sol_id=sol_id))
 
