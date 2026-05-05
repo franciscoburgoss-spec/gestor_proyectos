@@ -191,7 +191,7 @@ def _email_b_c_body(tipo, proyecto, sol, revisiones, docs_pendientes, resumen):
 
 
 def generar_acta_md(proyecto, sol, revisiones, docs_pendientes, resumen):
-    """Genera acta de revisión en Markdown."""
+    """Genera acta de revisión en Markdown usando ítems evaluados por documento."""
     lines = [f"# Acta de Revisión: {proyecto['acronimo']}", ""]
     lines.append(f"**Proyecto:** {proyecto['nombre']}  ")
     lines.append(f"**Revisión:** {sol['tipo']} #{_row_get(sol, 'numero_iteracion', '')}  ")
@@ -202,7 +202,77 @@ def generar_acta_md(proyecto, sol, revisiones, docs_pendientes, resumen):
     for k in ["aprobado", "observado", "rechazado", "pendiente"]:
         lines.append(f"- **{k.capitalize()}:** {resumen.get(k, 0)}")
     lines.append("")
-    if revisiones:
+
+    # ── Agrupar ítems de acta por (modulo, seccion, codigo) ──
+    # Cada revisión tiene acta_items_json con los ítems evaluados para ese documento
+    item_evaluaciones = {}  # (modulo, seccion, codigo) -> list of dicts
+    for r in revisiones:
+        acta_json = _row_get(r, 'acta_items_json') or '[]'
+        try:
+            items = json.loads(acta_json) if acta_json else []
+        except json.JSONDecodeError:
+            items = []
+        for it in items:
+            key = (r['modulo'], it.get('seccion', ''), it.get('codigo', ''))
+            if key not in item_evaluaciones:
+                item_evaluaciones[key] = []
+            item_evaluaciones[key].append({
+                'estado': it.get('estado', ''),
+                'obs': it.get('obs', ''),
+                'doc': r['codigo_completo'],
+                'titulo': r['titulo']
+            })
+
+    # Si hay ítems evaluados, mostrar la sección detallada de acta
+    if item_evaluaciones:
+        lines.append("## Evaluación por Ítems")
+        lines.append("")
+
+        # Ordenar por modulo, seccion, codigo
+        modulos_orden = {}
+        for (modulo, seccion, codigo), evals in item_evaluaciones.items():
+            if modulo not in modulos_orden:
+                modulos_orden[modulo] = {}
+            if seccion not in modulos_orden[modulo]:
+                modulos_orden[modulo][seccion] = []
+            # Determinar estado agregado
+            estados = [e['estado'] for e in evals]
+            if 'rechazado' in estados:
+                estado_final = 'rechazado'
+            elif 'observado' in estados:
+                estado_final = 'observado'
+            elif 'aprobado' in estados:
+                estado_final = 'aprobado'
+            else:
+                estado_final = 'no aplica'
+            # Comentarios concatenados
+            obs_lines = []
+            for e in evals:
+                if e['obs']:
+                    obs_lines.append(f"{e['doc']}: {e['obs']}")
+            modulos_orden[modulo][seccion].append({
+                'codigo': codigo,
+                'descripcion': evals[0].get('descripcion', f'{codigo}'),
+                'estado': estado_final,
+                'obs': '\n'.join(obs_lines) if obs_lines else ''
+            })
+
+        for modulo in sorted(modulos_orden.keys()):
+            lines.append(f"### Módulo {modulo}")
+            lines.append("")
+            for seccion in sorted(modulos_orden[modulo].keys()):
+                lines.append(f"**{seccion}**")
+                lines.append("")
+                for it in sorted(modulos_orden[modulo][seccion], key=lambda x: x['codigo']):
+                    estado_icon = {'aprobado': '✅', 'observado': '⚠️', 'rechazado': '❌', 'no aplica': '➖'}.get(it['estado'], '⬜')
+                    lines.append(f"- {it['codigo']} {estado_icon} {it['descripcion']}")
+                    if it['obs']:
+                        for obs_line in it['obs'].split('\n'):
+                            lines.append(f"  - {obs_line}")
+                lines.append("")
+
+    elif revisiones:
+        # Fallback: si no hay ítems evaluados, mostrar resumen por documento
         lines.append("## Documentos Revisados")
         lines.append("")
         for r in revisiones:
@@ -211,6 +281,7 @@ def generar_acta_md(proyecto, sol, revisiones, docs_pendientes, resumen):
             if _row_get(r, 'comentarios'):
                 lines.append(f"- **Comentarios:** {_row_get(r, 'comentarios')}")
             lines.append("")
+
     if docs_pendientes:
         lines.append("## Documentos Pendientes de Revisión")
         for d in docs_pendientes:
@@ -388,6 +459,36 @@ def migrate_db():
             ('TER', 'RAS', 'Rastreo'),
             ('GEN', 'PRO', 'Proyecto General');
         """)
+
+    # ── Migración: tabla acta_items ──
+    db.execute("""
+        CREATE TABLE IF NOT EXISTS acta_items (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            modulo TEXT NOT NULL,
+            seccion TEXT NOT NULL,
+            codigo TEXT NOT NULL,
+            descripcion TEXT NOT NULL,
+            tipo_doc TEXT,
+            orden INTEGER DEFAULT 0
+        )
+    """)
+    db.execute("CREATE INDEX IF NOT EXISTS idx_acta_items_modulo ON acta_items(modulo)")
+    db.execute("CREATE INDEX IF NOT EXISTS idx_acta_items_tipo_doc ON acta_items(tipo_doc)")
+
+    count_acta = db.execute("SELECT COUNT(*) FROM acta_items").fetchone()[0]
+    if count_acta == 0:
+        migracion_path = BASE_DIR / "migracion_acta_items.sql"
+        if migracion_path.exists():
+            db.executescript(migracion_path.read_text(encoding="utf-8"))
+        else:
+            print("WARNING: migracion_acta_items.sql no encontrado. Los items de acta no se poblaron.")
+
+    # Agregar columna acta_items_json a revisiones_aplicadas si no existe
+    cols_ra = db.execute("PRAGMA table_info(revisiones_aplicadas)").fetchall()
+    col_names_ra = [c[1] for c in cols_ra]
+    if "acta_items_json" not in col_names_ra:
+        db.execute("ALTER TABLE revisiones_aplicadas ADD COLUMN acta_items_json TEXT")
+
     db.commit()
     db.close()
 
@@ -1213,13 +1314,30 @@ def revisar_solicitud(sol_id):
             (SELECT resultado FROM revisiones_aplicadas
              WHERE solicitud_id = ? AND documento_id = d.id) as ya_revisado,
             (SELECT comentarios FROM revisiones_aplicadas
-             WHERE solicitud_id = ? AND documento_id = d.id) as ya_comentario
+             WHERE solicitud_id = ? AND documento_id = d.id) as ya_comentario,
+            (SELECT acta_items_json FROM revisiones_aplicadas
+             WHERE solicitud_id = ? AND documento_id = d.id) as ya_acta_items
         FROM documentos d
         WHERE d.proyecto_id = ? AND d.activo = 1 AND d.estado != 'aprobado'
         ORDER BY d.modulo, d.codigo_completo
-    """, (sol_id, sol_id, sol["proyecto_id"])).fetchall()
+    """, (sol_id, sol_id, sol_id, sol["proyecto_id"])).fetchall()
 
-    return render_template("revisar.html", sol=sol, proyecto=proyecto, documentos=documentos)
+    # Cargar ítems de acta para cada documento según su tipo
+    doc_items_map = {}
+    for d in documentos:
+        tipo_doc = d["tipo_documento"]
+        modulo = d["modulo"]
+        if tipo_doc:
+            items = db.execute("""
+                SELECT * FROM acta_items
+                WHERE modulo = ? AND tipo_doc = ?
+                ORDER BY orden
+            """, (modulo, tipo_doc)).fetchall()
+            if items:
+                doc_items_map[d["id"]] = [dict(i) for i in items]
+
+    return render_template("revisar.html", sol=sol, proyecto=proyecto, documentos=documentos,
+                           doc_items_map=doc_items_map, json=json)
 
 
 @app.route("/revision/aplicar", methods=["POST"])
@@ -1233,6 +1351,9 @@ def aplicar_revision():
     sol = db.execute("SELECT * FROM solicitudes WHERE id = ?", (solicitud_id,)).fetchone()
     doc = db.execute("SELECT * FROM documentos WHERE id = ?", (documento_id,)).fetchone()
 
+    # Capturar ítems de acta evaluados (si vienen del formulario)
+    acta_items_json = request.form.get("acta_items_json", "").strip()
+
     # Verificar que no exista ya una revisión para este par
     existente = db.execute(
         "SELECT id FROM revisiones_aplicadas WHERE solicitud_id = ? AND documento_id = ?",
@@ -1242,14 +1363,14 @@ def aplicar_revision():
     if existente:
         # Actualizar
         db.execute(
-            "UPDATE revisiones_aplicadas SET resultado = ?, comentarios = ?, fecha_revision = ? WHERE id = ?",
-            (resultado, comentarios, now_chile(), existente["id"])
+            "UPDATE revisiones_aplicadas SET resultado = ?, comentarios = ?, fecha_revision = ?, acta_items_json = ? WHERE id = ?",
+            (resultado, comentarios, now_chile(), acta_items_json or None, existente["id"])
         )
     else:
         # Crear
         db.execute(
-            "INSERT INTO revisiones_aplicadas (solicitud_id, documento_id, resultado, comentarios, fecha_revision) VALUES (?,?,?,?,?)",
-            (solicitud_id, documento_id, resultado, comentarios, now_chile())
+            "INSERT INTO revisiones_aplicadas (solicitud_id, documento_id, resultado, comentarios, fecha_revision, acta_items_json) VALUES (?,?,?,?,?,?)",
+            (solicitud_id, documento_id, resultado, comentarios, now_chile(), acta_items_json or None)
         )
 
     # Mutar estado del documento

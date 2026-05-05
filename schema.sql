@@ -159,6 +159,20 @@ CREATE TABLE IF NOT EXISTS jornada (
     CHECK (estado IN ('trabajado', 'feriado', 'permiso'))
 );
 
+-- Tabla de ítems de acta por módulo
+CREATE TABLE IF NOT EXISTS acta_items (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    modulo TEXT NOT NULL,
+    seccion TEXT NOT NULL,
+    codigo TEXT NOT NULL,
+    descripcion TEXT NOT NULL,
+    tipo_doc TEXT,
+    orden INTEGER DEFAULT 0
+);
+
+CREATE INDEX IF NOT EXISTS idx_acta_items_modulo ON acta_items(modulo);
+CREATE INDEX IF NOT EXISTS idx_acta_items_tipo_doc ON acta_items(tipo_doc);
+
 -- Índices para performance
 CREATE INDEX IF NOT EXISTS idx_elem_proyecto ON elementos_proyecto(proyecto_id);
 CREATE INDEX IF NOT EXISTS idx_doc_proyecto ON documentos(proyecto_id);

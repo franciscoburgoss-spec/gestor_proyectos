@@ -16,19 +16,39 @@
 </div>
 {% else %}
 
+<!-- Índice fijo de documentos -->
+<div class="card" style="position:sticky; top:0; z-index:100; padding:12px 16px; margin-bottom:16px;">
+    <div style="font-size:12px; color:var(--text-muted); margin-bottom:6px;">Documentos:</div>
+    <div style="display:flex; gap:6px; flex-wrap:wrap;">
+        {% for d in documentos %}
+        <a href="#doc-{{ d.id }}" class="btn-sm" style="font-size:12px; padding:4px 8px;">
+            {{ loop.index }}/{{ documentos|length }}
+            {% if d.ya_revisado %}✓{% endif %}
+        </a>
+        {% endfor %}
+    </div>
+</div>
+
 {% for d in documentos %}
-<section class="card">
+{% set doc_has_items = d.id in doc_items_map and doc_items_map[d.id]|length > 0 %}
+<section class="card" id="doc-{{ d.id }}" style="scroll-margin-top:80px;">
     <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:12px;">
         <div>
             <h3 style="margin:0;">{{ d.codigo_completo }}</h3>
             <p style="margin:4px 0 0; color:var(--text-muted); font-size:13px;">{{ d.titulo }}</p>
+            {% if doc_has_items %}
+            <p style="margin:4px 0 0; color:var(--success); font-size:11px;">
+                📋 {{ doc_items_map[d.id]|length }} ítem(s) de acta
+            </p>
+            {% endif %}
         </div>
         <span class="badge {{ d.estado }}">{{ d.estado }}</span>
     </div>
 
-    <form action="{{ url_for('aplicar_revision') }}" method="POST" class="form-stacked">
+    <form action="{{ url_for('aplicar_revision') }}" method="POST" class="form-stacked" data-doc-id="{{ d.id }}">
         <input type="hidden" name="solicitud_id" value="{{ sol.id }}">
         <input type="hidden" name="documento_id" value="{{ d.id }}">
+        <input type="hidden" name="acta_items_json" id="acta-items-{{ d.id }}" value="{{ d.ya_acta_items or '' }}">
 
         <div class="row" style="margin-bottom:8px;">
             <label style="width:100%; font-size:12px; color:var(--text-muted);">Resultado de revisión</label>
@@ -41,6 +61,36 @@
         </div>
 
         <textarea name="comentarios" rows="2" placeholder="Comentarios de la revisión (opcional)" style="margin-bottom:8px;">{{ d.ya_comentario or '' }}</textarea>
+
+        {% if doc_has_items %}
+        <!-- Checklist colapsado de ítems de acta -->
+        <div style="margin-bottom:10px;">
+            <button type="button" class="btn-sm" style="width:100%; text-align:left; background:var(--surface); color:var(--text); border:1px solid var(--border);" onclick="toggleActaItems({{ d.id }})">
+                <span id="acta-toggle-icon-{{ d.id }}">▶</span>
+                Ítems de Acta ({{ doc_items_map[d.id]|length }})
+                <span id="acta-progress-{{ d.id }}" style="float:right; font-size:11px; color:var(--text-muted);"></span>
+            </button>
+            <div id="acta-items-panel-{{ d.id }}" style="display:none; border:1px solid var(--border); border-top:none; border-radius:0 0 4px 4px; padding:12px; background:var(--surface);">
+                {% for item in doc_items_map[d.id] %}
+                <div class="acta-item-row" style="margin-bottom:10px; padding-bottom:10px; border-bottom:1px solid var(--border-light, #eee);">
+                    <div style="font-size:12px; font-weight:600; margin-bottom:4px;">
+                        {{ item.codigo }} — {{ item.descripcion }}
+                    </div>
+                    <div style="display:flex; gap:8px; align-items:center;">
+                        <select class="acta-item-estado" data-item-id="{{ item.id }}" data-item-seccion="{{ item.seccion }}" data-item-codigo="{{ item.codigo }}" data-item-desc="{{ item.descripcion }}" style="font-size:12px; padding:4px 8px; width:140px;">
+                            <option value="">Sin evaluar</option>
+                            <option value="aprobado">✅ Aprobado</option>
+                            <option value="observado">⚠️ Observado</option>
+                            <option value="rechazado">❌ Rechazado</option>
+                            <option value="no_aplica">➖ No aplica</option>
+                        </select>
+                        <input type="text" class="acta-item-obs" data-item-id="{{ item.id }}" placeholder="Observaciones" style="font-size:12px; padding:4px 8px; flex:1;">
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
 
         <button type="submit">
             {% if d.ya_revisado %}🔄 Actualizar{% else %}✓ Registrar revisión{% endif %}
@@ -60,5 +110,64 @@
 <div style="margin-top:20px;">
     <a href="{{ url_for('ver_solicitud', sol_id=sol.id) }}" class="back">← Volver al resumen de la solicitud</a>
 </div>
+
+<script>
+// Toggle colapso de ítems de acta
+function toggleActaItems(docId) {
+    var panel = document.getElementById('acta-items-panel-' + docId);
+    var icon = document.getElementById('acta-toggle-icon-' + docId);
+    if (panel.style.display === 'none') {
+        panel.style.display = 'block';
+        icon.textContent = '▼';
+    } else {
+        panel.style.display = 'none';
+        icon.textContent = '▶';
+    }
+}
+
+// Guardar ítems de acta como JSON antes de enviar el formulario
+document.querySelectorAll('form[data-doc-id]').forEach(function(form) {
+    form.addEventListener('submit', function(e) {
+        var docId = form.getAttribute('data-doc-id');
+        var items = [];
+        form.querySelectorAll('.acta-item-row').forEach(function(row) {
+            var estadoSelect = row.querySelector('.acta-item-estado');
+            var obsInput = row.querySelector('.acta-item-obs');
+            if (estadoSelect && estadoSelect.value) {
+                items.push({
+                    id: parseInt(estadoSelect.getAttribute('data-item-id')),
+                    seccion: estadoSelect.getAttribute('data-item-seccion'),
+                    codigo: estadoSelect.getAttribute('data-item-codigo'),
+                    descripcion: estadoSelect.getAttribute('data-item-desc'),
+                    estado: estadoSelect.value,
+                    obs: obsInput ? obsInput.value : ''
+                });
+            }
+        });
+        var jsonField = document.getElementById('acta-items-' + docId);
+        if (jsonField) {
+            jsonField.value = JSON.stringify(items);
+        }
+    });
+});
+
+// Restaurar ítems guardados desde JSON
+{% for d in documentos %}
+{% if d.ya_acta_items %}
+try {
+    var savedItems_{{ d.id }} = {{ d.ya_acta_items | safe }};
+    var form_{{ d.id }} = document.querySelector('form[data-doc-id="{{ d.id }}"]');
+    if (form_{{ d.id }}) {
+        savedItems_{{ d.id }}.forEach(function(it) {
+            var estadoSelect = form_{{ d.id }}.querySelector('.acta-item-estado[data-item-id="' + it.id + '"]');
+            var obsInput = form_{{ d.id }}.querySelector('.acta-item-obs[data-item-id="' + it.id + '"]');
+            if (estadoSelect) estadoSelect.value = it.estado;
+            if (obsInput) obsInput.value = it.obs || '';
+        });
+    }
+} catch(e) { console.error('Error restoring items for doc {{ d.id }}:', e); }
+{% endif %}
+{% endfor %}
+</script>
 
 {% endblock %}
