@@ -68,17 +68,26 @@ def _actualizar_estado_flujo(proyecto_id, db):
     db.commit()
 
 
+def _row_get(row, key, default=None):
+    """Acceso seguro a sqlite3.Row que no tiene .get()"""
+    try:
+        val = row[key]
+        return val if val is not None else default
+    except (KeyError, IndexError):
+        return default
+
+
 def generar_acta_md(proyecto, sol, revisiones, docs_pendientes, resumen):
     """Genera acta de revisión en Markdown."""
     lines = [f"# Acta de Revisión: {proyecto['acronimo']}", ""]
     lines.append(f"**Proyecto:** {proyecto['nombre']}  ")
-    lines.append(f"**Revisión:** {sol['tipo']} #{sol.get('numero_iteracion','')}  ")
+    lines.append(f"**Revisión:** {sol['tipo']} #{_row_get(sol, 'numero_iteracion', '')}  ")
     lines.append(f"**Fecha:** {now_chile()[:10]}  ")
-    lines.append(f"**Comuna:** {proyecto.get('comuna','-')}  ")
+    lines.append(f"**Comuna:** {_row_get(proyecto, 'comuna', '-')}  ")
     lines.append("")
     lines.append("## Resumen")
     for k in ["aprobado", "observado", "rechazado", "pendiente"]:
-        lines.append(f"- **{k.capitalize()}:** {resumen.get(k,0)}")
+        lines.append(f"- **{k.capitalize()}:** {resumen.get(k, 0)}")
     lines.append("")
     if revisiones:
         lines.append("## Documentos Revisados")
@@ -86,8 +95,8 @@ def generar_acta_md(proyecto, sol, revisiones, docs_pendientes, resumen):
         for r in revisiones:
             lines.append(f"### {r['codigo_completo']} — {r['titulo']}")
             lines.append(f"- **Resultado:** {r['resultado']}")
-            if r.get('comentarios'):
-                lines.append(f"- **Comentarios:** {r['comentarios']}")
+            if _row_get(r, 'comentarios'):
+                lines.append(f"- **Comentarios:** {_row_get(r, 'comentarios')}")
             lines.append("")
     if docs_pendientes:
         lines.append("## Documentos Pendientes de Revisión")
@@ -1249,8 +1258,8 @@ def cancelar_solicitud(sol_id):
 
 def _proyecto_con_comuna(proyecto):
     """Devuelve la referencia al proyecto incluyendo comuna si existe."""
-    comuna = proyecto.get("comuna")
-    zona = proyecto.get("zona_sismica")
+    comuna = _row_get(proyecto, "comuna")
+    zona = _row_get(proyecto, "zona_sismica")
     ref = f"{proyecto['acronimo']}"
     if comuna:
         ref += f" de la comuna de {comuna}"
@@ -1300,9 +1309,7 @@ def generar_email_chk(proyecto, sol, revisiones, docs_pendientes):
     lines.append("")
     lines.append("Saludos,")
     lines.append("")
-    lines.append("[Tu nombre]")
-    lines.append("[Cargo]")
-    lines.append("[Empresa]")
+    lines.append(USER_NAME)
 
     return "\n".join(lines)
 
@@ -1321,9 +1328,7 @@ def generar_email_r01_r02(proyecto, sol, resumen):
     lines.append("")
     lines.append("Saludos,")
     lines.append("")
-    lines.append("[Tu nombre]")
-    lines.append("[Cargo]")
-    lines.append("[Empresa]")
+    lines.append(USER_NAME)
 
     return "\n".join(lines)
 
@@ -1354,9 +1359,7 @@ def generar_email_rex(proyecto, sol, revisiones, motivo_rechazo=""):
 
     lines.append("Saludos,")
     lines.append("")
-    lines.append("[Tu nombre]")
-    lines.append("[Cargo]")
-    lines.append("[Empresa]")
+    lines.append(USER_NAME)
 
     return "\n".join(lines)
 
