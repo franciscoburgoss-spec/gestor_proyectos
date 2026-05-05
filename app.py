@@ -77,6 +77,157 @@ def _row_get(row, key, default=None):
         return default
 
 
+def _row_get(row, key, default=None):
+    """Acceso seguro a sqlite3.Row que no tiene .get()"""
+    try:
+        val = row[key]
+        return val if val is not None else default
+    except (KeyError, IndexError):
+        return default
+
+
+def _proyecto_nombre_comuna(proyecto):
+    """Devuelve 'Nombre Proyecto de la comuna de X' (sin zona sísmica, sin acrónimo)."""
+    comuna = _row_get(proyecto, "comuna")
+    nombre = proyecto["nombre"]
+    if comuna:
+        return f'{nombre} de la comuna de {comuna}'
+    return nombre
+
+
+def _email_asunto(tipo, proyecto, resumen):
+    """Genera la línea de asunto automática."""
+    comuna = _row_get(proyecto, "comuna", "")
+    nombre = proyecto["nombre"]
+    estado = "Completado"
+    if resumen.get("rechazado", 0) > 0:
+        estado = "Con Rechazados"
+    elif resumen.get("observado", 0) > 0:
+        estado = "Con Observados"
+    elif resumen.get("pendiente", 0) > 0:
+        estado = "Con Pendientes"
+    comuna_txt = f" | {comuna}" if comuna else ""
+    return f"{tipo} {estado} — Proyecto \"{nombre}\"{comuna_txt}"
+
+
+def _email_b_c_body(tipo, proyecto, sol, revisiones, docs_pendientes, resumen):
+    """Genera el cuerpo del email con estructura B+C (bloques siempre visibles + resumen ejecutivo)."""
+    aprobados = [r for r in revisiones if r["resultado"] == "aprobado"]
+    observados = [r for r in revisiones if r["resultado"] == "observado"]
+    rechazados = [r for r in revisiones if r["resultado"] == "rechazado"]
+
+    lines = []
+    lines.append("Estimado Coordinador,")
+    lines.append("")
+    lines.append(f"Adjunto resultado de la {tipo} realizada al proyecto {_proyecto_nombre_comuna(proyecto)}.")
+    lines.append("")
+
+    # Resumen Ejecutivo
+    lines.append("RESUMEN EJECUTIVO")
+    lines.append("━" * 30)
+    lines.append(f"Aprobados:     {resumen.get('aprobado', 0)}")
+    lines.append(f"Observados:    {resumen.get('observado', 0)}")
+    lines.append(f"Rechazados:    {resumen.get('rechazado', 0)}")
+    lines.append(f"Pendientes:    {resumen.get('pendiente', 0)}")
+    lines.append("━" * 30)
+    lines.append("")
+
+    # Documentos Aprobados
+    lines.append("DOCUMENTOS APROBADOS")
+    if aprobados:
+        for r in aprobados:
+            lines.append(f"- {r['codigo_completo']}")
+    else:
+        lines.append("Ninguno.")
+    lines.append("")
+
+    # Documentos Observados
+    lines.append("DOCUMENTOS OBSERVADOS")
+    if observados:
+        for r in observados:
+            comentario = _row_get(r, "comentarios") or "Sin comentarios"
+            lines.append(f"- {r['codigo_completo']}: {comentario}")
+    else:
+        lines.append("Ninguno.")
+    lines.append("")
+
+    # Documentos Rechazados
+    lines.append("DOCUMENTOS RECHAZADOS")
+    if rechazados:
+        for r in rechazados:
+            comentario = _row_get(r, "comentarios") or "Sin comentarios"
+            lines.append(f"- {r['codigo_completo']}: {comentario}")
+    else:
+        lines.append("Ninguno.")
+    lines.append("")
+
+    # Documentos Pendientes
+    lines.append("DOCUMENTOS PENDIENTES DE REVISIÓN")
+    if docs_pendientes:
+        for d in docs_pendientes:
+            lines.append(f"- {d['codigo_completo']} — {d['titulo']}")
+    else:
+        lines.append("Ninguno.")
+    lines.append("")
+
+    # Siguiente Paso (condicional según tipo y resultado)
+    lines.append("SIGUIENTE PASO")
+    n_rech = len(rechazados)
+    n_obs = len(observados)
+    n_pend = len(docs_pendientes)
+
+    if tipo == "CHK":
+        if n_rech > 0:
+            lines.append("Se solicita corregir los documentos rechazados y presentarlos en la Revisión Excepcional (REX).")
+        elif n_obs > 0:
+            lines.append("Se solicita corregir los documentos observados y presentarlos en la próxima iteración de Checklist.")
+        elif n_pend > 0:
+            lines.append("Se solicita incluir los documentos pendientes en la próxima iteración de Checklist.")
+        else:
+            lines.append("Todos los documentos fueron aprobados en esta revisión.")
+            lines.append("El proyecto queda a la espera de la solicitud de Revisión 01 (R01).")
+
+    elif tipo == "R01":
+        if n_rech > 0:
+            lines.append("Se solicita corregir los documentos rechazados y presentarlos en la Revisión 02 (R02).")
+        elif n_obs > 0:
+            lines.append("Se solicita corregir los documentos observados y presentarlos en la Revisión 02 (R02).")
+        elif n_pend > 0:
+            lines.append("Se solicita incluir los documentos pendientes en la Revisión 02 (R02).")
+        else:
+            lines.append("Todos los documentos fueron aprobados en esta revisión.")
+            lines.append("El proyecto queda a la espera de la solicitud de Revisión 02 (R02).")
+
+    elif tipo == "R02":
+        if n_rech > 0:
+            lines.append("Se solicita corregir los documentos rechazados y presentarlos en la Revisión Excepcional (REX).")
+        elif n_obs > 0:
+            lines.append("Se solicita corregir los documentos observados y presentarlos en la Revisión Excepcional (REX).")
+        elif n_pend > 0:
+            lines.append("Se solicita incluir los documentos pendientes en la Revisión Excepcional (REX).")
+        else:
+            lines.append("Todos los documentos fueron aprobados en esta revisión.")
+            lines.append("El proyecto está listo para el cierre del proceso.")
+
+    elif tipo == "REX":
+        if n_obs > 0:
+            lines.append("El proyecto presenta documentos observados en la Revisión Excepcional.")
+            lines.append("Se procede al rechazo del proyecto.")
+        elif n_rech > 0:
+            lines.append("Se solicita corregir los documentos rechazados.")
+            lines.append("Dada la naturaleza de la Revisión Excepcional, el proyecto se considera no viable hasta nueva presentación completa.")
+        else:
+            lines.append("Todos los documentos fueron aprobados en la Revisión Excepcional.")
+            lines.append("El proyecto puede proceder al cierre del proceso.")
+
+    lines.append("")
+    lines.append("Saludos cordiales,")
+    lines.append("")
+    lines.append(USER_NAME)
+
+    return "\n".join(lines)
+
+
 def generar_acta_md(proyecto, sol, revisiones, docs_pendientes, resumen):
     """Genera acta de revisión en Markdown."""
     lines = [f"# Acta de Revisión: {proyecto['acronimo']}", ""]
@@ -1257,111 +1408,59 @@ def cancelar_solicitud(sol_id):
 # ──────────────────────────────────────────────────────────────
 
 def _proyecto_con_comuna(proyecto):
-    """Devuelve la referencia al proyecto incluyendo comuna si existe."""
-    comuna = _row_get(proyecto, "comuna")
-    zona = _row_get(proyecto, "zona_sismica")
-    ref = f"{proyecto['acronimo']}"
-    if comuna:
-        ref += f" de la comuna de {comuna}"
-        if zona:
-            ref += f" (Z{zona})"
-    return ref
+    """Devuelve la referencia al proyecto: nombre + comuna (sin zona sismica)."""
+    return _proyecto_nombre_comuna(proyecto)
 
 
-def generar_email_chk(proyecto, sol, revisiones, docs_pendientes):
-    """Email para Checklist: lista documento por documento con comentarios."""
-    lines = ["Estimado Coordinador,", ""]
-    lines.append(f"He realizado el Checklist del proyecto {_proyecto_con_comuna(proyecto)} y el resultado arrojó lo siguiente:")
-    lines.append("")
-
-    # Separar por resultado
-    aprobados = [r for r in revisiones if r["resultado"] == "aprobado"]
-    observados = [r for r in revisiones if r["resultado"] == "observado"]
-    rechazados = [r for r in revisiones if r["resultado"] == "rechazado"]
-
-    if observados:
-        lines.append("Documentos observados:")
-        for r in observados:
-            comentario = r["comentarios"] or "Sin comentarios"
-            lines.append(f"- {r['codigo_completo']}: {comentario}")
-        lines.append("")
-
-    if rechazados:
-        lines.append("Documentos rechazados:")
-        for r in rechazados:
-            comentario = r["comentarios"] or "Sin comentarios"
-            lines.append(f"- {r['codigo_completo']}: {comentario}")
-        lines.append("")
-
-    if docs_pendientes:
-        lines.append("Documentos faltantes:")
-        for d in docs_pendientes:
-            lines.append(f"- {d['codigo_completo']} ({d['titulo']})")
-        lines.append("")
-
-    if aprobados:
-        lines.append("Documentos aprobados:")
-        for r in aprobados:
-            lines.append(f"- {r['codigo_completo']}")
-        lines.append("")
-
-    lines.append("Se solicita corregir los documentos observados y presentarlos en la próxima iteración de Checklist.")
-    lines.append("")
-    lines.append("Saludos,")
-    lines.append("")
-    lines.append(USER_NAME)
-
-    return "\n".join(lines)
+def generar_email_chk(proyecto, sol, revisiones, docs_pendientes, resumen=None):
+    """Email para Checklist: estructura B+C con asunto automatico."""
+    if resumen is None:
+        resumen = {"aprobado": 0, "observado": 0, "rechazado": 0, "pendiente": len(docs_pendientes)}
+        for r in revisiones:
+            if r["resultado"] in resumen:
+                resumen[r["resultado"]] = resumen.get(r["resultado"], 0) + 1
+    asunto = _email_asunto("Checklist", proyecto, resumen)
+    cuerpo = _email_b_c_body("CHK", proyecto, sol, revisiones, docs_pendientes, resumen)
+    return f"ASUNTO: {asunto}\n\n{cuerpo}"
 
 
-def generar_email_r01_r02(proyecto, sol, resumen):
-    """Email para R01/R02: resumen numérico + referencia a acta adjunta."""
-    lines = ["Estimado Coordinador,", ""]
-    lines.append(f"He realizado la {sol['tipo']} del proyecto {_proyecto_con_comuna(proyecto)}. El resultado arrojó lo siguiente:")
-    lines.append("")
-    lines.append(f"- {resumen.get('aprobado', 0)} documento(s) aprobado(s)")
-    lines.append(f"- {resumen.get('observado', 0)} documento(s) observado(s)")
-    lines.append(f"- {resumen.get('rechazado', 0)} documento(s) rechazado(s)")
-    lines.append(f"- {resumen.get('pendiente', 0)} documento(s) pendiente(s) de revisión")
-    lines.append("")
-    lines.append("Adjunto acta de revisión con el detalle específico de cada documento.")
-    lines.append("")
-    lines.append("Saludos,")
-    lines.append("")
-    lines.append(USER_NAME)
-
-    return "\n".join(lines)
+def generar_email_r01_r02(proyecto, sol, revisiones, docs_pendientes, resumen=None):
+    """Email para R01/R02: estructura B+C con asunto automatico."""
+    if resumen is None:
+        resumen = {"aprobado": 0, "observado": 0, "rechazado": 0, "pendiente": len(docs_pendientes)}
+        for r in revisiones:
+            if r["resultado"] in resumen:
+                resumen[r["resultado"]] = resumen.get(r["resultado"], 0) + 1
+    tipo = sol["tipo"]
+    asunto = _email_asunto(tipo, proyecto, resumen)
+    cuerpo = _email_b_c_body(tipo, proyecto, sol, revisiones, docs_pendientes, resumen)
+    return f"ASUNTO: {asunto}\n\n{cuerpo}"
 
 
-def generar_email_rex(proyecto, sol, revisiones, motivo_rechazo=""):
-    """Email para REX: lista de rechazados + comentarios + motivo de rechazo del proyecto."""
-    lines = ["Estimado Coordinador,", ""]
-    lines.append(f"He realizado la Revisión Excepcional del proyecto {_proyecto_con_comuna(proyecto)}. El resultado arrojó lo siguiente:")
-    lines.append("")
-
-    rechazados = [r for r in revisiones if r["resultado"] == "rechazado"]
-
-    if rechazados:
-        lines.append("Documentos rechazados:")
-        for r in rechazados:
-            comentario = r["comentarios"] or "Sin comentarios"
-            lines.append(f"- {r['codigo_completo']}: {comentario}")
-        lines.append("")
-
+def generar_email_rex(proyecto, sol, revisiones, docs_pendientes, resumen=None, motivo_rechazo=""):
+    """Email para REX: estructura B+C con asunto automatico + motivo de rechazo."""
+    if resumen is None:
+        resumen = {"aprobado": 0, "observado": 0, "rechazado": 0, "pendiente": len(docs_pendientes)}
+        for r in revisiones:
+            if r["resultado"] in resumen:
+                resumen[r["resultado"]] = resumen.get(r["resultado"], 0) + 1
+    asunto = _email_asunto("Revisión Excepcional", proyecto, resumen)
+    cuerpo = _email_b_c_body("REX", proyecto, sol, revisiones, docs_pendientes, resumen)
     if motivo_rechazo:
-        lines.append("Motivo de rechazo del proyecto:")
-        lines.append(motivo_rechazo)
-        lines.append("")
-    else:
-        lines.append("Motivo de rechazo del proyecto:")
-        lines.append("[Indicar motivo de rechazo del proyecto]")
-        lines.append("")
+        cuerpo = cuerpo.replace(
+            "Saludos cordiales,",
+            f"MOTIVO DE RECHAZO DEL PROYECTO\n{motivo_rechazo}\n\nSaludos cordiales,"
+        )
+    return f"ASUNTO: {asunto}\n\n{cuerpo}"
 
-    lines.append("Saludos,")
-    lines.append("")
-    lines.append(USER_NAME)
 
-    return "\n".join(lines)
+# Diccionario extensible de generadores de correo
+EMAIL_GENERATORS = {
+    "CHK": generar_email_chk,
+    "R01": generar_email_r01_r02,
+    "R02": generar_email_r01_r02,
+    "REX": generar_email_rex,
+}
 
 
 # Diccionario extensible de generadores de correo
@@ -1415,17 +1514,17 @@ def generar_email(sol_id):
         flash(f"No hay template de correo para solicitudes tipo {tipo}", "err")
         return redirect(url_for("ver_solicitud", sol_id=sol_id))
 
-    # Generar contenido según tipo
+    # Generar contenido según tipo (todos reciben los mismos parámetros base + extras)
     if tipo == "CHK":
-        contenido = generator(proyecto, sol, revisiones, docs_pendientes)
+        contenido = generator(proyecto, sol, revisiones, docs_pendientes, resumen)
     elif tipo in ("R01", "R02"):
-        contenido = generator(proyecto, sol, resumen)
+        contenido = generator(proyecto, sol, revisiones, docs_pendientes, resumen)
     elif tipo == "REX":
         # Para REX, usar motivo de cierre del proyecto si existe
-        motivo = proyecto.get("motivo_cierre") or ""
-        contenido = generator(proyecto, sol, revisiones, motivo)
+        motivo = _row_get(proyecto, "motivo_cierre") or ""
+        contenido = generator(proyecto, sol, revisiones, docs_pendientes, resumen, motivo)
     else:
-        contenido = generator(proyecto, sol, revisiones, docs_pendientes)
+        contenido = generator(proyecto, sol, revisiones, docs_pendientes, resumen)
 
     # Descargar como .txt
     filename = f"email_{proyecto['acronimo']}_{tipo}{sol['numero_iteracion']}.txt"
