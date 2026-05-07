@@ -14,6 +14,7 @@ def migrar():
         ("elemento_id", "INTEGER"),
         ("familia", "TEXT DEFAULT ''"),
         ("elemento", "TEXT DEFAULT ''"),
+        ("tipologia", "TEXT DEFAULT ''"),
         ("etapa", "TEXT DEFAULT 'CHK'"),
         ("estado_chk", "TEXT DEFAULT 'faltante'"),
         ("estado_tecnico", "TEXT"),
