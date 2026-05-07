@@ -18,6 +18,7 @@
     <p class="notas">{{ proyecto.notas }}</p>
     {% endif %}
     <div style="margin-top:10px;">
+        <a href="{{ url_for('revisiones.chk_dashboard', proyecto_id=proyecto.id) }}" class="btn-sm" style="background:var(--success); color:white;">📋 CHK</a>
         <a href="{{ url_for('reporte_md', proyecto_id=proyecto.id) }}" class="btn-sm">📄 Trazabilidad (MD)</a>
         <a href="{{ url_for('reporte_pdf', proyecto_id=proyecto.id) }}" class="btn-sm">📋 Trazabilidad (PDF)</a>
         <a href="{{ url_for('repositorio_md', proyecto_id=proyecto.id) }}" class="btn-sm">🗂️ Repositorio</a>

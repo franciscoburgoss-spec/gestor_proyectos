@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}Nueva Observación CHK — {{ documento.codigo_completo }}{% endblock %}
+{% block content %}
+
+<header class="project-header">
+    <h1>⚠️ Registrar Observación CHK</h1>
+    <div class="meta">
+        <span>Documento: {{ documento.codigo_completo }}</span>
+        <span>{{ documento.titulo }}</span>
+    </div>
+</header>
+
+<div class="card">
+    <form method="post" class="form-stacked">
+        <div class="form-group">
+            <label>Problema encontrado</label>
+            <textarea name="descripcion" rows="4" required placeholder="Describe qué está mal con este documento. Ej: 'Es copia de T03, no T04 como debería ser.'"></textarea>
+        </div>
+
+        <div class="form-group">
+            <label>Qué se solicita para corregir</label>
+            <textarea name="accion_correctiva" rows="3" placeholder="Ej: 'Enviar memoria de cálculo correcta de tipología T01'"></textarea>
+        </div>
+
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary">Guardar Observación</button>
+            <a href="{{ url_for('revisiones.chk_dashboard', proyecto_id=proyecto.id) }}" class="btn btn-secondary">Cancelar</a>
+        </div>
+    </form>
+</div>
+
+{% endblock %}

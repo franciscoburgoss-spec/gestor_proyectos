@@ -1,0 +1,165 @@
+{% extends "base.html" %}
+{% block title %}CHK — {{ proyecto.acronimo }}{% endblock %}
+{% block content %}
+
+<header class="project-header">
+    <h1>📋 Checklist de Recepción — {{ proyecto.acronimo }}</h1>
+    <div class="meta">
+        <span>Proyecto: <a href="{{ url_for('ver_proyecto', proyecto_id=proyecto.id) }}">{{ proyecto.acronimo }}</a></span>
+        <span>{{ proyecto.nombre }}</span>
+    </div>
+</header>
+
+<!-- Estadísticas -->
+<div class="stats-grid" style="display:grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap:12px; margin-bottom:20px;">
+    <div class="stat-box" style="background:white; border-radius:8px; padding:16px; text-align:center; border:1px solid #eee;">
+        <div style="font-size:1.5rem; font-weight:700; color:#2e7d32;">{{ stats.ok }}</div>
+        <div style="font-size:0.75rem; color:#666;">Sin observación</div>
+    </div>
+    <div class="stat-box" style="background:white; border-radius:8px; padding:16px; text-align:center; border:1px solid #eee;">
+        <div style="font-size:1.5rem; font-weight:700; color:#e65100;">{{ stats.obs }}</div>
+        <div style="font-size:0.75rem; color:#666;">Con observación</div>
+    </div>
+    <div class="stat-box" style="background:white; border-radius:8px; padding:16px; text-align:center; border:1px solid #eee;">
+        <div style="font-size:1.5rem; font-weight:700; color:#c62828;">{{ stats.falt }}</div>
+        <div style="font-size:0.75rem; color:#666;">Faltantes</div>
+    </div>
+    <div class="stat-box" style="background:white; border-radius:8px; padding:16px; text-align:center; border:1px solid #eee;">
+        <div style="font-size:1.5rem; font-weight:700; color:#1976d2;">{{ stats.total }}</div>
+        <div style="font-size:0.75rem; color:#666;">Total esperados</div>
+    </div>
+</div>
+
+<!-- Barra de progreso -->
+<div style="background:#e0e0e0; border-radius:10px; height:8px; overflow:hidden; margin-bottom:20px;">
+    <div style="height:100%; border-radius:10px; background:#4caf50; width:{{ (stats.ok / stats.total * 100) if stats.total > 0 else 0 }}%;"></div>
+</div>
+
+<!-- Observaciones pendientes -->
+{% if observaciones %}
+<div class="card" style="background:#fff3e0; border:1px solid #ffe0b2;">
+    <h3 style="color:#e65100; margin-bottom:12px;">⚠️ Observaciones pendientes ({{ observaciones|length }})</h3>
+    <table class="data-table" style="font-size:0.85rem;">
+        <tbody>
+        {% for o in observaciones %}
+        <tr>
+            <td><strong>{{ o.codigo }}</strong></td>
+            <td>{{ o.codigo_completo }}</td>
+            <td>{{ o.descripcion[:80] }}{% if o.descripcion|length > 80 %}...{% endif %}</td>
+            <td>
+                <form method="post" action="{{ url_for('revisiones.chk_resolver_observacion', proyecto_id=proyecto.id, obs_id=o.id) }}" style="display:inline;">
+                    <button type="submit" class="btn btn-success btn-sm">✓ Resuelto</button>
+                </form>
+            </td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endif %}
+
+<!-- Tabla de documentos -->
+<div class="card">
+    <div class="section-header">
+        <h3>Documentos esperados</h3>
+        {% if not stats.completo %}
+        <a href="{{ url_for('revisiones.chk_generar_email', proyecto_id=proyecto.id) }}" class="btn btn-primary">📧 Generar email al Coordinador</a>
+        {% endif %}
+    </div>
+
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>Código</th>
+                <th>Tipo</th>
+                <th>Elemento</th>
+                <th>Estado CHK</th>
+                <th>Acciones</th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for d in documentos %}
+        <tr class="{% if d.estado_chk == 'con_observacion' %}row-warning{% elif d.estado_chk == 'faltante' %}row-danger{% endif %}">
+            <td>
+                <div style="font-family:monospace; font-weight:600; font-size:0.9rem;">{{ d.codigo_completo }}</div>
+                <div style="font-size:0.8rem; color:#666;">{{ d.titulo }}</div>
+            </td>
+            <td>
+                {% if d.disciplina %}
+                <span class="badge badge-{{ d.disciplina|lower }}">{{ d.tipo_nombre or d.disciplina }}</span>
+                {% endif %}
+            </td>
+            <td>{{ d.elem_codigo }}</td>
+            <td>
+                {% if d.estado_chk == 'sin_observacion' %}
+                <span class="badge badge-ok">Sin observación</span>
+                {% elif d.estado_chk == 'con_observacion' %}
+                <span class="badge badge-obs">Con observación</span>
+                {% else %}
+                <span class="badge badge-faltante">Faltante</span>
+                {% endif %}
+            </td>
+            <td>
+                <form method="post" action="{{ url_for('revisiones.chk_cambiar_estado', proyecto_id=proyecto.id, documento_id=d.id) }}" style="display:flex; gap:4px; flex-wrap:wrap;">
+                    <input type="hidden" name="estado" id="estado-{{ d.id }}" value="{{ d.estado_chk }}">
+                    <button type="button" class="btn btn-success btn-sm" onclick="setEstado({{ d.id }}, 'sin_observacion')">✓ OK</button>
+                    <button type="button" class="btn btn-danger btn-sm" onclick="setEstado({{ d.id }}, 'con_observacion')">⚠ Obs</button>
+                    <button type="button" class="btn btn-secondary btn-sm" onclick="setEstado({{ d.id }}, 'faltante')">❌ Falta</button>
+                    <input type="text" name="ubicacion_fisica" value="{{ d.ubicacion_fisica or '' }}" placeholder="Ruta física" style="width:150px; font-size:0.75rem;">
+                    <button type="submit" class="btn btn-primary btn-sm">Guardar</button>
+                </form>
+            </td>
+        </tr>
+        {% else %}
+        <tr>
+            <td colspan="5" style="text-align:center; color:#888;">No hay documentos anticipados. <a href="{{ url_for('ver_proyecto', proyecto_id=proyecto.id) }}">Volver al proyecto</a></td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<!-- Botón completar CHK -->
+{% if stats.completo and stats.total > 0 %}
+<div class="card" style="background:#e8f5e9; border:1px solid #a5d6a7;">
+    <div style="display:flex; justify-content:space-between; align-items:center;">
+        <div>
+            <strong style="color:#2e7d32;">✅ Todos los documentos están sin observación</strong>
+            <div style="font-size:0.85rem; color:#555;">Puedes completar el CHK y avanzar a R01</div>
+        </div>
+        <form method="post" action="{{ url_for('revisiones.chk_completar', proyecto_id=proyecto.id) }}">
+            <button type="submit" class="btn btn-success">Completar CHK →</button>
+        </form>
+    </div>
+</div>
+{% elif stats.total > 0 %}
+<div class="card" style="background:#ffebee; border:1px solid #ffcdd2;">
+    <div style="color:#c62828;">
+        <strong>❌ No se puede completar CHK</strong>
+        <div style="font-size:0.85rem;">Hay {{ stats.obs }} documento(s) con observación y {{ stats.falt }} faltante(s). Todos deben estar "Sin observación".</div>
+    </div>
+</div>
+{% endif %}
+
+<script>
+function setEstado(docId, estado) {
+    document.getElementById('estado-' + docId).value = estado;
+    // Highlight selected button
+    var form = document.getElementById('estado-' + docId).closest('form');
+    form.querySelectorAll('button[type="button"]').forEach(function(btn) {
+        btn.style.opacity = '0.5';
+    });
+    event.target.style.opacity = '1';
+    event.target.style.fontWeight = 'bold';
+}
+</script>
+
+<style>
+.row-warning { background: #fff3e0 !important; }
+.row-danger { background: #ffebee !important; }
+.badge-ok { background: #e8f5e9; color: #2e7d32; }
+.badge-obs { background: #fff3e0; color: #e65100; }
+.badge-faltante { background: #ffebee; color: #c62828; }
+</style>
+
+{% endblock %}

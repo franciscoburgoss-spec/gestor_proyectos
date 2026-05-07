@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% block title %}Cruces Pendientes — {{ proyecto.acronimo }}{% endblock %}
+{% block content %}
+
+<header class="project-header">
+    <h1>🔗 Cruces Pendientes — {{ proyecto.acronimo }}</h1>
+    <div class="meta">
+        <span>Proyecto: <a href="{{ url_for('ver_proyecto', proyecto_id=proyecto.id) }}">{{ proyecto.acronimo }}</a></span>
+    </div>
+</header>
+
+<div class="card">
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>Origen</th>
+                <th>→ Destino</th>
+                <th>Descripción</th>
+                <th>Documentos</th>
+                <th>Estado</th>
+                <th>Acciones</th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for c in cruces %}
+        <tr>
+            <td><span class="badge badge-{{ c.origen_disciplina|lower }}">{{ c.origen_disciplina }}</span></td>
+            <td><span class="badge badge-{{ c.destino_disciplina|lower }}">{{ c.destino_disciplina }}</span></td>
+            <td>{{ c.descripcion }}</td>
+            <td style="font-size:0.8rem;">
+                <div>{{ c.doc_origen }}</div>
+                <div style="color:#888;">→ {{ c.doc_destino or 'Pendiente' }}</div>
+            </td>
+            <td>
+                {% if c.estado == 'verificado' %}
+                <span class="badge badge-ok">Verificado</span>
+                {% elif c.estado == 'no_aplica' %}
+                <span class="badge badge-na">No aplica</span>
+                {% else %}
+                <span class="badge badge-faltante">Pendiente</span>
+                {% endif %}
+            </td>
+            <td>
+                {% if c.estado == 'pendiente' %}
+                <form method="post" action="{{ url_for('revisiones.verificar_cruce', id=c.id) }}" style="display:flex; gap:4px; flex-direction:column;">
+                    <input type="hidden" name="resultado" value="verificado">
+                    <button type="submit" class="btn btn-success btn-sm">✓ Verificado</button>
+                </form>
+                <form method="post" action="{{ url_for('revisiones.verificar_cruce', id=c.id) }}" style="display:flex; gap:4px; flex-direction:column; margin-top:4px;">
+                    <input type="hidden" name="resultado" value="no_aplica">
+                    <button type="submit" class="btn btn-secondary btn-sm">— No aplica</button>
+                </form>
+                <form method="post" action="{{ url_for('revisiones.verificar_cruce', id=c.id) }}" style="display:flex; gap:4px; margin-top:4px;">
+                    <input type="hidden" name="resultado" value="con_observacion">
+                    <input type="text" name="observacion" placeholder="Observación..." style="width:100px; font-size:0.75rem;">
+                    <button type="submit" class="btn btn-danger btn-sm">⚠</button>
+                </form>
+                {% endif %}
+            </td>
+        </tr>
+        {% else %}
+        <tr>
+            <td colspan="6" style="text-align:center; color:#888;">No hay cruces pendientes</td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<style>
+.badge-ok { background: #e8f5e9; color: #2e7d32; }
+.badge-faltante { background: #ffebee; color: #c62828; }
+.badge-na { background: #eceff1; color: #546e7a; }
+</style>
+
+{% endblock %}

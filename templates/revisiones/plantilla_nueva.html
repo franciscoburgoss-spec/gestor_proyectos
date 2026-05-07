@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block title %}Nueva Plantilla{% endblock %}
+{% block content %}
+<div class="card">
+    <h2>➕ Nueva Plantilla de Revisión</h2>
+    <form method="post" class="form-grid">
+        <div class="form-group">
+            <label>Código</label>
+            <input type="text" name="codigo" required maxlength="20" placeholder="MEM_EST">
+        </div>
+        <div class="form-group">
+            <label>Nombre</label>
+            <input type="text" name="nombre" required placeholder="Memoria de Cálculo Estructural">
+        </div>
+        <div class="form-group">
+            <label>Disciplina</label>
+            <select name="disciplina" required>
+                <option value="MDS">Mecánica de Suelos</option>
+                <option value="HAB">Habilitación</option>
+                <option value="EST">Estructuras</option>
+                <option value="LAB">Laboratorio</option>
+                <option value="OTRO">Otro</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label>Orden en Flujo</label>
+            <input type="number" name="orden_flujo" value="1" min="1" max="10">
+            <div class="hint">1=MDS, 2=HAB, 3=EST</div>
+        </div>
+        <div class="form-group">
+            <label>Anticipar documentos para</label>
+            <select name="anticipar_para">
+                <option value="todos">Todos los elementos</option>
+                <option value="glb">Solo GLB</option>
+                <option value="tipologias">Solo Tipologías (T01, T02...)</option>
+            </select>
+        </div>
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary">Crear Plantilla</button>
+            <a href="{{ url_for('revisiones.listar_plantillas') }}" class="btn btn-secondary">Cancelar</a>
+        </div>
+    </form>
+</div>
+{% endblock %}

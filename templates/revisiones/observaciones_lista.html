@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block title %}Observaciones — {{ proyecto.acronimo }}{% endblock %}
+{% block content %}
+
+<header class="project-header">
+    <h1>📋 Observaciones — {{ proyecto.acronimo }}</h1>
+    <div class="meta">
+        <span>Proyecto: <a href="{{ url_for('ver_proyecto', proyecto_id=proyecto.id) }}">{{ proyecto.acronimo }}</a></span>
+    </div>
+</header>
+
+<div class="card">
+    <div style="display:flex; gap:12px; margin-bottom:16px; flex-wrap:wrap;">
+        <a href="{{ url_for('revisiones.listar_observaciones', proyecto_id=proyecto.id) }}" class="btn btn-sm {{ 'btn-primary' if not tipo_filtro and not estado_filtro else 'btn-secondary' }}">Todas</a>
+        <a href="{{ url_for('revisiones.listar_observaciones', proyecto_id=proyecto.id, tipo='chk') }}" class="btn btn-sm {{ 'btn-primary' if tipo_filtro == 'chk' else 'btn-secondary' }}">CHK</a>
+        <a href="{{ url_for('revisiones.listar_observaciones', proyecto_id=proyecto.id, tipo='tecnica') }}" class="btn btn-sm {{ 'btn-primary' if tipo_filtro == 'tecnica' else 'btn-secondary' }}">Técnicas</a>
+        <a href="{{ url_for('revisiones.listar_observaciones', proyecto_id=proyecto.id, estado='pendientes') }}" class="btn btn-sm {{ 'btn-primary' if estado_filtro == 'pendientes' else 'btn-secondary' }}">Pendientes</a>
+        <a href="{{ url_for('revisiones.listar_observaciones', proyecto_id=proyecto.id, estado='resueltas') }}" class="btn btn-sm {{ 'btn-primary' if estado_filtro == 'resueltas' else 'btn-secondary' }}">Resueltas</a>
+    </div>
+
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>Código</th>
+                <th>Tipo</th>
+                <th>Documento</th>
+                <th>Descripción</th>
+                <th>Severidad</th>
+                <th>Estado</th>
+                <th>Acciones</th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for o in observaciones %}
+        <tr>
+            <td><strong>{{ o.codigo }}</strong></td>
+            <td><span class="badge {{ 'badge-obs' if o.tipo == 'chk' else 'badge-est' }}">{{ o.tipo }}</span></td>
+            <td>{{ o.codigo_completo }}</td>
+            <td>{{ o.descripcion[:80] }}{% if o.descripcion|length > 80 %}...{% endif %}</td>
+            <td>{{ o.severidad or '-' }}</td>
+            <td>
+                {% if o.resuelta %}
+                <span class="badge badge-ok">Resuelta</span>
+                {% else %}
+                <span class="badge badge-faltante">Pendiente</span>
+                {% endif %}
+            </td>
+            <td>
+                <a href="{{ url_for('revisiones.ver_observacion', id=o.id) }}" class="btn btn-sm">Ver</a>
+            </td>
+        </tr>
+        {% else %}
+        <tr>
+            <td colspan="7" style="text-align:center; color:#888;">No hay observaciones registradas</td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<style>
+.badge-ok { background: #e8f5e9; color: #2e7d32; }
+.badge-faltante { background: #ffebee; color: #c62828; }
+</style>
+
+{% endblock %}

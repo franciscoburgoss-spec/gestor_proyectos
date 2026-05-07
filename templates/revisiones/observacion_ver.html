@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+{% block title %}{{ obs.codigo }} — {{ obs.acronimo }}{% endblock %}
+{% block content %}
+
+<header class="project-header">
+    <h1>📋 {{ obs.codigo }}</h1>
+    <div class="meta">
+        <span>Proyecto: {{ obs.acronimo }}</span>
+        <span>Documento: {{ obs.codigo_completo }}</span>
+    </div>
+</header>
+
+<div class="card">
+    <div style="display:flex; gap:8px; margin-bottom:16px; flex-wrap:wrap;">
+        <span class="badge {{ 'badge-ok' if obs.resuelta else 'badge-faltante' }}">
+            {{ '✅ Resuelta' if obs.resuelta else '❌ Pendiente' }}
+        </span>
+        <span class="badge badge-{{ obs.tipo }}">{{ obs.tipo }}</span>
+        {% if obs.severidad %}
+        <span class="badge badge-sev-{{ obs.severidad }}">{{ obs.severidad }}</span>
+        {% endif %}
+    </div>
+
+    {% if not obs.resuelta %}
+    <form method="post" action="{{ url_for('revisiones.resolver_observacion', id=obs.id) }}" style="margin-bottom:20px;">
+        <div class="form-group">
+            <label>¿Cómo se resolvió?</label>
+            <textarea name="comentario" rows="2" placeholder="Descripción de la corrección aplicada..."></textarea>
+        </div>
+        <button type="submit" class="btn btn-success">✓ Marcar como resuelta</button>
+    </form>
+    {% else %}
+    <div style="background:#e8f5e9; border:1px solid #a5d6a7; border-radius:6px; padding:12px; margin-bottom:20px;">
+        <strong>✅ Resuelta el {{ obs.resuelta_at[:10] }}</strong>
+        {% if obs.resuelta_comentario %}
+        <div style="margin-top:4px; color:#555;">{{ obs.resuelta_comentario }}</div>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    <div class="detail-grid" style="display:grid; grid-template-columns: 1fr 1fr; gap:16px;">
+        <div>
+            <label>Descripción del hallazgo</label>
+            <div class="value" style="white-space:pre-line; background:#f5f5f5; padding:12px; border-radius:6px;">{{ obs.descripcion }}</div>
+        </div>
+
+        <div>
+            <label>Acción correctiva esperada</label>
+            <div class="value" style="white-space:pre-line; background:#f5f5f5; padding:12px; border-radius:6px;">{{ obs.accion_correctiva or '—' }}</div>
+        </div>
+
+        {% if obs.fundamento_normativo %}
+        <div>
+            <label>Fundamento normativo</label>
+            <div class="value">{{ obs.fundamento_normativo }}</div>
+        </div>
+        {% endif %}
+
+        {% if obs.seccion_nombre %}
+        <div>
+            <label>Sección de plantilla</label>
+            <div class="value">{{ obs.seccion_nombre }}</div>
+        </div>
+        {% endif %}
+
+        {% if obs.item_texto %}
+        <div>
+            <label>Ítem de checklist</label>
+            <div class="value">{{ obs.item_texto }}</div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Referencias cruzadas -->
+<div class="card">
+    <h3>🔗 Referencias cruzadas</h3>
+    {% if refs %}
+    <table class="data-table" style="font-size:0.85rem;">
+        <tbody>
+        {% for r in refs %}
+        <tr>
+            <td>{{ r.codigo_completo }}</td>
+            <td>{{ r.ubicacion_exacta or '—' }}</td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p style="color:#888;">Sin referencias cruzadas</p>
+    {% endif %}
+
+    <form method="post" action="{{ url_for('revisiones.agregar_ref_observacion', id=obs.id) }}" style="margin-top:12px; display:flex; gap:8px;">
+        <input type="number" name="documento_id" placeholder="ID documento" required style="width:120px;">
+        <input type="text" name="ubicacion_exacta" placeholder="Ubicación exacta (ej: Lámina 2 de 7)" style="flex:1;">
+        <button type="submit" class="btn btn-primary btn-sm">+ Agregar ref.</button>
+    </form>
+</div>
+
+<a href="{{ url_for('revisiones.listar_observaciones', proyecto_id=obs.proyecto_id) }}" class="btn btn-secondary">← Volver</a>
+
+<style>
+.badge-ok { background: #e8f5e9; color: #2e7d32; }
+.badge-faltante { background: #ffebee; color: #c62828; }
+.badge-chk { background: #fff3e0; color: #e65100; }
+.badge-tecnica { background: #e8eaf6; color: #283593; }
+.badge-sev-leve { background: #fff8e1; color: #f9a825; }
+.badge-sev-moderada { background: #fff3e0; color: #e65100; }
+.badge-sev-grave { background: #ffebee; color: #c62828; }
+.badge-sev-critica { background: #f3e5f5; color: #6a1b9a; }
+</style>
+
+{% endblock %}

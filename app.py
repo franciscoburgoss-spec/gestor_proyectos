@@ -15,6 +15,9 @@ from logging.handlers import RotatingFileHandler
 
 from utils import now_chile, dias_habiles, ascii_safe
 
+# ── Blueprint: Módulo de Revisiones Técnicas ─────────────────
+from routes_revisiones import revisiones_bp, anticipar_documentos_proyecto
+
 TZ_CHILE = ZoneInfo("America/Santiago")
 
 
@@ -336,6 +339,7 @@ ZONAS = {c["nombre"]: c["zona"] for c in COMUNAS_DATA.get("comunas", [])}
 
 app = Flask(__name__)
 app.secret_key = SECRET_KEY
+app.register_blueprint(revisiones_bp)
 
 # Configuracion de logging a archivo rotativo
 LOG_DIR = BASE_DIR / "logs"
@@ -384,23 +388,15 @@ def init_db():
     db.close()
 
 def migrate_db():
-    """Migra columnas básicas de proyectos. Este release requiere RESET limpio
-    por cambio de esquema en documentos (familia+elemento). Borrar proyectos.db manualmente."""
-    db = sqlite3.connect(str(DATABASE))
-    cols = db.execute("PRAGMA table_info(proyectos)").fetchall()
-    col_names = [c[1] for c in cols]
-    if "motivo_cierre" not in col_names:
-        db.execute("ALTER TABLE proyectos ADD COLUMN motivo_cierre TEXT")
-        db.commit()
-    if "comuna" not in col_names:
-        db.execute("ALTER TABLE proyectos ADD COLUMN comuna TEXT")
-        db.commit()
-    if "zona_sismica" not in col_names:
-        db.execute("ALTER TABLE proyectos ADD COLUMN zona_sismica INTEGER")
-        db.commit()
-    if "estado_flujo" not in col_names:
-        db.execute("ALTER TABLE proyectos ADD COLUMN estado_flujo TEXT DEFAULT 'sin_solicitud'")
-        db.commit()
+    """Ejecuta migración incremental de esquema."""
+    import subprocess
+    import sys
+    script = BASE_DIR / "migrar_revisiones.py"
+    result = subprocess.run([sys.executable, str(script)], capture_output=True, text=True)
+    if result.returncode != 0:
+        print("⚠️ Error en migración:", result.stderr)
+    else:
+        print("✅ Migración completada.")
 
     # Crear tablas nuevas si no existen (para migración sin reset)
     db.execute("""
@@ -635,11 +631,14 @@ def crear_proyecto():
                     (pid, cod, f"Tipología {i}", "VIV", i)
                 )
 
-        # 2. Elemento PRO (Proyecto General) siempre presente
+        # 2. Elemento GLB (Global) siempre presente
         db.execute(
             "INSERT INTO elementos_proyecto (proyecto_id, codigo, nombre, familia, orden) VALUES (?,?,?,?,?)",
-            (pid, "PRO", "Proyecto General", "GEN", 999)
+            (pid, "GLB", "Elementos Globales", "GEN", 0)
         )
+
+        # 3. Anticipar documentos esperados según elementos + plantillas
+        creados = anticipar_documentos_proyecto(pid, db)
 
         db.commit()
 
@@ -652,6 +651,8 @@ def crear_proyecto():
             desc += ")"
         if nt > 0:
             desc += f" con {nt} tipologías"
+        if creados:
+            desc += f". {len(creados)} documentos esperados generados"
         db.execute(
             "INSERT INTO historial (proyecto_id, accion, descripcion, fecha) VALUES (?,?,?,?)",
             (pid, "creacion", desc, now_chile())

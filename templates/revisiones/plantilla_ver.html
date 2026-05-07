@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% block title %}{{ plantilla.nombre }}{% endblock %}
+{% block content %}
+<div class="card">
+    <div class="section-header">
+        <h2>📋 {{ plantilla.nombre }}</h2>
+        <span class="badge badge-{{ plantilla.disciplina|lower }}">{{ plantilla.disciplina }}</span>
+    </div>
+
+    <form method="post" action="{{ url_for('revisiones.editar_plantilla', id=plantilla.id) }}" class="form-inline">
+        <div class="form-group">
+            <label>Nombre</label>
+            <input type="text" name="nombre" value="{{ plantilla.nombre }}" required>
+        </div>
+        <div class="form-group">
+            <label>Disciplina</label>
+            <select name="disciplina">
+                <option value="MDS" {{ 'selected' if plantilla.disciplina == 'MDS' else '' }}>MDS</option>
+                <option value="HAB" {{ 'selected' if plantilla.disciplina == 'HAB' else '' }}>HAB</option>
+                <option value="EST" {{ 'selected' if plantilla.disciplina == 'EST' else '' }}>EST</option>
+                <option value="LAB" {{ 'selected' if plantilla.disciplina == 'LAB' else '' }}>LAB</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label>Orden</label>
+            <input type="number" name="orden_flujo" value="{{ plantilla.orden_flujo }}" min="1" max="10">
+        </div>
+        <div class="form-group">
+            <label>Anticipar</label>
+            <select name="anticipar_para">
+                <option value="todos" {{ 'selected' if plantilla.anticipar_para == 'todos' else '' }}>Todos</option>
+                <option value="glb" {{ 'selected' if plantilla.anticipar_para == 'glb' else '' }}>GLB</option>
+                <option value="tipologias" {{ 'selected' if plantilla.anticipar_para == 'tipologias' else '' }}>Tipologías</option>
+            </select>
+        </div>
+        <button type="submit" class="btn btn-primary">Guardar</button>
+    </form>
+</div>
+
+<div class="card">
+    <div class="section-header">
+        <h3>📑 Secciones de Revisión</h3>
+        <div class="hint">{{ secciones|length }} secciones · {{ secciones|sum(attribute='num_items') }} ítems totales</div>
+    </div>
+
+    {% for sec in secciones %}
+    <div class="subsection" style="margin-bottom: 24px; border: 1px solid #eee; border-radius: 8px; padding: 16px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+            <div>
+                <strong>{{ sec.orden }}. {{ sec.nombre }}</strong>
+                <span style="color: #888; font-size: 0.85rem; margin-left: 8px;">{{ sec.num_items }} ítems</span>
+            </div>
+            <form method="post" action="{{ url_for('revisiones.eliminar_seccion', id=sec.id) }}" onsubmit="return confirm('¿Eliminar esta sección y todos sus ítems?')">
+                <button type="submit" class="btn btn-danger btn-sm">Eliminar</button>
+            </form>
+        </div>
+
+        <!-- Ítems de esta sección -->
+        {% set items_query = "SELECT i.* FROM items_plantilla i WHERE i.seccion_id = " ~ sec.id ~ " ORDER BY i.orden" %}
+        {% set items = db.execute(items_query).fetchall() if false else [] %}
+        <!-- Lista de ítems (se cargarán vía subquery en el template, aquí simplificado) -->
+        <div style="margin-left: 16px;">
+            <form method="post" action="{{ url_for('revisiones.nuevo_item', seccion_id=sec.id) }}" style="display: flex; gap: 8px; margin-bottom: 12px;">
+                <input type="text" name="texto" placeholder="Nuevo ítem de checklist..." required style="flex: 1;">
+                <input type="text" name="ayuda" placeholder="Ayuda (opcional)" style="width: 200px;">
+                <button type="submit" class="btn btn-primary btn-sm">+ Ítem</button>
+            </form>
+        </div>
+    </div>
+    {% endfor %}
+
+    <form method="post" action="{{ url_for('revisiones.nueva_seccion', plantilla_id=plantilla.id) }}" style="display: flex; gap: 8px; margin-top: 16px;">
+        <input type="text" name="nombre" placeholder="Nueva sección..." required style="flex: 1;">
+        <input type="number" name="orden" value="{{ secciones|length + 1 }}" min="1" style="width: 80px;">
+        <button type="submit" class="btn btn-primary">+ Sección</button>
+    </form>
+</div>
+
+<a href="{{ url_for('revisiones.listar_plantillas') }}" class="btn btn-secondary">← Volver a Plantillas</a>
+{% endblock %}

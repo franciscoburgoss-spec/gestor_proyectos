@@ -81,3 +81,28 @@ Traceback (most recent call last):
              ^^^^^^^^^^^^
 AttributeError: 'sqlite3.Row' object has no attribute 'get'
 2026-05-05 10:46:23,088 INFO [/Volumes/MEM EXT/proyecto_ingenieria/app.py:1388] Acta regenerada OK: solicitud 1
+2026-05-05 20:26:45,350 ERROR [/Volumes/MEM EXT/proyecto_ingenieria/app.py:1848] Error generando PDF de acta existente: TTF Font file not found: /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf
+2026-05-07 13:26:02,105 ERROR [/Volumes/MEM EXT/proyecto_ingenieria/venv/lib/python3.14/site-packages/flask/app.py:875] Exception on /proyecto/crear [POST]
+Traceback (most recent call last):
+  File "/Volumes/MEM EXT/proyecto_ingenieria/venv/lib/python3.14/site-packages/flask/app.py", line 1511, in wsgi_app
+    response = self.full_dispatch_request()
+  File "/Volumes/MEM EXT/proyecto_ingenieria/venv/lib/python3.14/site-packages/flask/app.py", line 919, in full_dispatch_request
+    rv = self.handle_user_exception(e)
+  File "/Volumes/MEM EXT/proyecto_ingenieria/venv/lib/python3.14/site-packages/flask/app.py", line 917, in full_dispatch_request
+    rv = self.dispatch_request()
+  File "/Volumes/MEM EXT/proyecto_ingenieria/venv/lib/python3.14/site-packages/flask/app.py", line 902, in dispatch_request
+    return self.ensure_sync(self.view_functions[rule.endpoint])(**view_args)  # type: ignore[no-any-return]
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^
+  File "/Volumes/MEM EXT/proyecto_ingenieria/app.py", line 641, in crear_proyecto
+    creados = anticipar_documentos_proyecto(pid, db)
+  File "/Volumes/MEM EXT/proyecto_ingenieria/routes_revisiones.py", line 857, in anticipar_documentos_proyecto
+    db.execute("""
+    ~~~~~~~~~~^^^^
+        INSERT INTO documentos (proyecto_id, elemento_id, codigo_completo, acronimo,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<4 lines>...
+          pt["disciplina"], elem["familia"], elem["codigo"], pt["codigo"], elem["codigo"],
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+          f"{pt['nombre']} — {elem['nombre']}", pt["id"]))
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+sqlite3.OperationalError: table documentos has no column named tipologia

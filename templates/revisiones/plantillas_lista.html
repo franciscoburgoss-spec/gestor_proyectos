@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}Plantillas de Revisión{% endblock %}
+{% block content %}
+<div class="card">
+    <div class="section-header">
+        <h2>⚙️ Plantillas de Revisión por Tipo de Documento</h2>
+        <a href="{{ url_for('revisiones.nueva_plantilla') }}" class="btn btn-primary">+ Nueva Plantilla</a>
+    </div>
+
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>Código</th>
+                <th>Nombre</th>
+                <th>Disciplina</th>
+                <th>Orden</th>
+                <th>Anticipar para</th>
+                <th>Acciones</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for pt in plantillas %}
+            <tr>
+                <td><code>{{ pt.codigo }}</code></td>
+                <td>{{ pt.nombre }}</td>
+                <td><span class="badge badge-{{ pt.disciplina|lower }}">{{ pt.disciplina }}</span></td>
+                <td>{{ pt.orden_flujo }}</td>
+                <td>{{ pt.anticipar_para }}</td>
+                <td>
+                    <a href="{{ url_for('revisiones.ver_plantilla', id=pt.id) }}" class="btn btn-sm">Ver</a>
+                </td>
+            </tr>
+            {% else %}
+            <tr>
+                <td colspan="6" style="text-align:center; color:#888;">No hay plantillas configuradas</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

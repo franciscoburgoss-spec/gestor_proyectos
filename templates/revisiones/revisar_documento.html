@@ -1,0 +1,137 @@
+{% extends "base.html" %}
+{% block title %}Revisar — {{ documento.codigo_completo }}{% endblock %}
+{% block content %}
+
+<header class="project-header">
+    <h1>🔍 Revisión Técnica — {{ documento.codigo_completo }}</h1>
+    <div class="meta">
+        <span>Proyecto: <a href="{{ url_for('ver_proyecto', proyecto_id=documento.proyecto_id) }}">{{ documento.acronimo }}</a></span>
+        <span>Etapa: {{ documento.etapa }}</span>
+        <span>Tipo: {{ documento.tipo_nombre or documento.disciplina }}</span>
+    </div>
+</header>
+
+<!-- Observaciones previas como contexto -->
+{% if observaciones %}
+<div class="card" style="background:#fff3e0; border:1px solid #ffe0b2;">
+    <h3 style="color:#e65100; font-size:0.95rem; margin-bottom:12px;">📋 Observaciones previas de este documento ({{ observaciones|length }})</h3>
+    <div style="font-size:0.85rem; color:#555;">
+        {% for o in observaciones %}
+        <div style="margin-bottom:8px; padding:8px; background:#fff; border-radius:4px;">
+            <strong>{{ o.codigo }}</strong> — {{ o.seccion_nombre or 'CHK' }}: {{ o.descripcion[:100] }}{% if o.descripcion|length > 100 %}...{% endif %}
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
+<!-- Checklist por secciones -->
+<div class="card">
+    <h3>Checklist de Revisión</h3>
+    <form id="checklist-form">
+        <input type="hidden" id="revision-id" value="{{ revision_id }}">
+        
+        {% set current_section = namespace(value='') %}
+        {% for item in checklist %}
+        
+        {% if item.seccion != current_section.value %}
+            {% if not loop.first %}</div>{% endif %}
+            <div class="section-group" style="margin-bottom:24px; border:1px solid #eee; border-radius:8px; padding:16px;">
+                <h4 style="margin:0 0 12px; color:#1976d2; font-size:1rem;">{{ item.sec_orden }}. {{ item.seccion }}</h4>
+            {% set current_section.value = item.seccion %}
+        {% endif %}
+        
+        <div class="check-item" style="margin-bottom:16px; padding:12px; background:#fafafa; border-radius:6px;" data-check-id="{{ item.id }}">
+            <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:8px;">
+                <div>
+                    <div style="font-size:0.9rem; font-weight:500;">{{ item.texto }}</div>
+                    {% if item.ayuda %}
+                    <div style="font-size:0.8rem; color:#888; margin-top:2px;">💡 {{ item.ayuda }}</div>
+                    {% endif %}
+                </div>
+                <div style="display:flex; gap:4px; flex-shrink:0;">
+                    <button type="button" class="btn-check {{ 'active' if item.estado == 'conforme' else '' }}" data-estado="conforme" onclick="marcarItem({{ item.id }}, 'conforme')">✓</button>
+                    <button type="button" class="btn-check {{ 'active' if item.estado == 'no_conforme' else '' }}" data-estado="no_conforme" onclick="marcarItem({{ item.id }}, 'no_conforme')">✗</button>
+                    <button type="button" class="btn-check {{ 'active' if item.estado == 'no_aplica' else '' }}" data-estado="no_aplica" onclick="marcarItem({{ item.id }}, 'no_aplica')">—</button>
+                </div>
+            </div>
+            
+            <textarea class="comentario-item" data-check-id="{{ item.id }}" placeholder="Comentario opcional..." rows="1" style="font-size:0.8rem; width:100%; padding:6px; border:1px solid #ddd; border-radius:4px; resize:vertical;">{{ item.comentario_item or '' }}</textarea>
+            
+            {% if item.estado == 'no_conforme' and item.observacion_id %}
+            <div style="margin-top:8px; font-size:0.8rem; color:#e65100;">
+                ⚠️ Generó observación. <a href="{{ url_for('revisiones.ver_observacion', id=item.observacion_id) }}">Ver OBS</a>
+            </div>
+            {% endif %}
+        </div>
+        
+        {% if loop.last %}</div>{% endif %}
+        {% endfor %}
+    </form>
+</div>
+
+<!-- Finalizar revisión -->
+<div class="card" style="background:#f5f9ff; border:1px solid #bbdefb;">
+    <h3>Finalizar Revisión</h3>
+    <form method="post" action="{{ url_for('revisiones.finalizar_revision', revision_id=revision_id) }}" class="form-stacked">
+        <div class="form-group">
+            <label>Notas generales</label>
+            <textarea name="notas_generales" rows="3" placeholder="Resumen de la revisión, hallazgos generales...">{{ notas or '' }}</textarea>
+        </div>
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary">Finalizar revisión</button>
+            <a href="{{ url_for('ver_proyecto', proyecto_id=documento.proyecto_id) }}" class="btn btn-secondary">Cancelar</a>
+        </div>
+    </form>
+</div>
+
+<style>
+.btn-check {
+    width: 32px; height: 32px; border-radius: 50%; border: 2px solid #ddd;
+    background: white; cursor: pointer; font-size: 14px; display: flex;
+    align-items: center; justify-content: center; transition: all 0.2s;
+}
+.btn-check:hover { border-color: #1976d2; }
+.btn-check.active[data-estado="conforme"] { background: #4caf50; color: white; border-color: #4caf50; }
+.btn-check.active[data-estado="no_conforme"] { background: #ef5350; color: white; border-color: #ef5350; }
+.btn-check.active[data-estado="no_aplica"] { background: #9e9e9e; color: white; border-color: #9e9e9e; }
+</style>
+
+<script>
+function marcarItem(checkId, estado) {
+    var comentario = document.querySelector('.comentario-item[data-check-id="' + checkId + '"]').value;
+    
+    fetch('/revisiones/revisar/checklist/' + checkId + '/marcar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: 'estado=' + encodeURIComponent(estado) + '&comentario=' + encodeURIComponent(comentario)
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.ok) {
+            // Update UI
+            var item = document.querySelector('.check-item[data-check-id="' + checkId + '"]');
+            item.querySelectorAll('.btn-check').forEach(function(btn) {
+                btn.classList.remove('active');
+                if (btn.dataset.estado === estado) {
+                    btn.classList.add('active');
+                }
+            });
+            
+            // If no_conforme, show link to observation
+            if (estado === 'no_conforme' && data.observacion_id) {
+                var obsDiv = item.querySelector('.obs-link');
+                if (!obsDiv) {
+                    obsDiv = document.createElement('div');
+                    obsDiv.className = 'obs-link';
+                    obsDiv.style.cssText = 'margin-top:8px; font-size:0.8rem; color:#e65100;';
+                    item.appendChild(obsDiv);
+                }
+                obsDiv.innerHTML = '⚠️ Generó observación. <a href="/revisiones/observacion/' + data.observacion_id + '">Ver OBS</a>';
+            }
+        }
+    });
+}
+</script>
+
+{% endblock %}
