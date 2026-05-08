@@ -1,10 +1,14 @@
 -- Esquema completo de base de datos
 -- Plataforma de seguimiento de proyectos de ingeniería
 -- Nomenclatura: PROY-MOD-FAM-ELEM-TIPO-REV-VER
+-- v3: schema autoritativo — todas las tablas definidas aquí, sin creación dinámica en init_db()
 
 PRAGMA foreign_keys = ON;
 
--- Tablas de configuración
+-- ============================================================
+-- TABLAS DE CONFIGURACIÓN
+-- ============================================================
+
 CREATE TABLE IF NOT EXISTS config_modulos (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     codigo TEXT NOT NULL UNIQUE,
@@ -19,7 +23,23 @@ CREATE TABLE IF NOT EXISTS config_tipos_documento (
     activo INTEGER DEFAULT 1
 );
 
--- Tabla de proyectos
+-- Catálogo de elementos (familia + código + nombre)
+-- Familias: VIV=vivienda, REC=recreación, TER=terreno, OBR=obra complementaria, URB=urbanización, PRO=proyecto general
+CREATE TABLE IF NOT EXISTS catalogo_elementos (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    familia TEXT NOT NULL,
+    codigo TEXT NOT NULL,
+    nombre TEXT NOT NULL,
+    activo INTEGER DEFAULT 1,
+    UNIQUE(familia, codigo)
+);
+
+CREATE INDEX IF NOT EXISTS idx_catalogo_familia ON catalogo_elementos(familia);
+
+-- ============================================================
+-- TABLAS CORE
+-- ============================================================
+
 CREATE TABLE IF NOT EXISTS proyectos (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     acronimo TEXT NOT NULL UNIQUE,
@@ -35,7 +55,6 @@ CREATE TABLE IF NOT EXISTS proyectos (
     notas TEXT
 );
 
--- Tabla de elementos del proyecto
 CREATE TABLE IF NOT EXISTS elementos_proyecto (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     proyecto_id INTEGER NOT NULL,
@@ -44,7 +63,7 @@ CREATE TABLE IF NOT EXISTS elementos_proyecto (
     familia TEXT NOT NULL DEFAULT 'OBR',
     orden INTEGER DEFAULT 0,
     FOREIGN KEY (proyecto_id) REFERENCES proyectos(id),
-    CHECK (familia IN ('VIV', 'REC', 'TER', 'OBR', 'URB', 'GEN'))
+    CHECK (familia IN ('VIV', 'REC', 'TER', 'OBR', 'URB', 'PRO'))
 );
 
 -- Tabla de documentos
@@ -59,6 +78,7 @@ CREATE TABLE IF NOT EXISTS documentos (
     familia TEXT NOT NULL,
     elemento TEXT NOT NULL,
     tipo_documento TEXT NOT NULL,
+    tipologia TEXT DEFAULT '',
     revision TEXT NOT NULL,
     version TEXT NOT NULL,
     titulo TEXT NOT NULL,
@@ -66,11 +86,19 @@ CREATE TABLE IF NOT EXISTS documentos (
     ruta_fisica TEXT,
     fecha_registro TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     activo INTEGER DEFAULT 1,
+    -- Columnas del módulo de revisiones (definidas nativamente, no por ALTER)
+    etapa TEXT DEFAULT 'CHK',
+    version_rev INTEGER DEFAULT 1,
+    estado_chk TEXT DEFAULT 'faltante',
+    estado_tecnico TEXT,
+    ubicacion_fisica TEXT,
+    plantilla_tipo_id INTEGER,
+    revision_actual_id INTEGER,
+    revision_count INTEGER DEFAULT 0,
     FOREIGN KEY (proyecto_id) REFERENCES proyectos(id),
     FOREIGN KEY (elemento_id) REFERENCES elementos_proyecto(id) ON DELETE RESTRICT
 );
 
--- Tabla de solicitudes (emails/entradas)
 CREATE TABLE IF NOT EXISTS solicitudes (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     proyecto_id INTEGER NOT NULL,
@@ -84,7 +112,6 @@ CREATE TABLE IF NOT EXISTS solicitudes (
     FOREIGN KEY (proyecto_id) REFERENCES proyectos(id)
 );
 
--- Tabla de revisiones aplicadas
 CREATE TABLE IF NOT EXISTS revisiones_aplicadas (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     solicitud_id INTEGER NOT NULL,
@@ -92,11 +119,11 @@ CREATE TABLE IF NOT EXISTS revisiones_aplicadas (
     resultado TEXT NOT NULL,
     comentarios TEXT,
     fecha_revision TIMESTAMP DEFAULT (datetime('now','localtime')),
+    acta_items_json TEXT,
     FOREIGN KEY (solicitud_id) REFERENCES solicitudes(id),
     FOREIGN KEY (documento_id) REFERENCES documentos(id)
 );
 
--- Tabla de actas
 CREATE TABLE IF NOT EXISTS actas (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     proyecto_id INTEGER NOT NULL,
@@ -109,7 +136,6 @@ CREATE TABLE IF NOT EXISTS actas (
     FOREIGN KEY (solicitud_id) REFERENCES solicitudes(id)
 );
 
--- Tabla de historial (inmutable)
 CREATE TABLE IF NOT EXISTS historial (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     proyecto_id INTEGER NOT NULL,
@@ -122,7 +148,6 @@ CREATE TABLE IF NOT EXISTS historial (
     fecha TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Tabla de documentos eliminados (cementerio)
 CREATE TABLE IF NOT EXISTS documentos_eliminados (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     proyecto_id INTEGER NOT NULL,
@@ -135,7 +160,10 @@ CREATE TABLE IF NOT EXISTS documentos_eliminados (
     FOREIGN KEY (proyecto_id) REFERENCES proyectos(id)
 );
 
--- Tabla de tareas (independientes de proyectos)
+-- ============================================================
+-- MÓDULO DE TAREAS + JORNADA
+-- ============================================================
+
 CREATE TABLE IF NOT EXISTS tareas (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     asunto TEXT NOT NULL,
@@ -148,7 +176,6 @@ CREATE TABLE IF NOT EXISTS tareas (
     CHECK (estado IN ('pendiente', 'en_progreso', 'completada'))
 );
 
--- Tabla de jornada laboral
 CREATE TABLE IF NOT EXISTS jornada (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     fecha DATE NOT NULL UNIQUE,
@@ -159,7 +186,13 @@ CREATE TABLE IF NOT EXISTS jornada (
     CHECK (estado IN ('trabajado', 'feriado', 'permiso'))
 );
 
--- Tabla de ítems de acta por módulo
+CREATE INDEX IF NOT EXISTS idx_tareas_estado ON tareas(estado);
+CREATE INDEX IF NOT EXISTS idx_jornada_fecha ON jornada(fecha);
+
+-- ============================================================
+-- ÍTEMS DE ACTA POR MÓDULO
+-- ============================================================
+
 CREATE TABLE IF NOT EXISTS acta_items (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     modulo TEXT NOT NULL,
@@ -173,45 +206,20 @@ CREATE TABLE IF NOT EXISTS acta_items (
 CREATE INDEX IF NOT EXISTS idx_acta_items_modulo ON acta_items(modulo);
 CREATE INDEX IF NOT EXISTS idx_acta_items_tipo_doc ON acta_items(tipo_doc);
 
--- Índices para performance
+-- ============================================================
+-- ÍNDICES CORE
+-- ============================================================
+
 CREATE INDEX IF NOT EXISTS idx_elem_proyecto ON elementos_proyecto(proyecto_id);
 CREATE INDEX IF NOT EXISTS idx_doc_proyecto ON documentos(proyecto_id);
 CREATE INDEX IF NOT EXISTS idx_doc_estado ON documentos(estado);
 CREATE INDEX IF NOT EXISTS idx_sol_proyecto ON solicitudes(proyecto_id);
 CREATE INDEX IF NOT EXISTS idx_hist_proyecto ON historial(proyecto_id);
 CREATE INDEX IF NOT EXISTS idx_hist_documento ON historial(documento_id);
-CREATE INDEX IF NOT EXISTS idx_tareas_estado ON tareas(estado);
-CREATE INDEX IF NOT EXISTS idx_jornada_fecha ON jornada(fecha);
-
--- Datos iniciales de configuración
-INSERT OR IGNORE INTO config_modulos (codigo, nombre) VALUES
-('EST', 'Estructuras'),
-('MDS', 'Mecánica de Suelos'),
-('HAB', 'Habilitación'),
-('URB', 'Urbanización'),
-('ADM', 'Administrativo');
-
-INSERT OR IGNORE INTO config_tipos_documento (codigo, nombre) VALUES
-('MEM', 'Memoria de Cálculo'),
-('PLN', 'Planimetría'),
-('INF', 'Informes'),
-('ENS', 'Ensayos de Laboratorio'),
-('MHB', 'Memoria de Habilitación'),
-('LEG', 'Documentación Legal');
 
 -- ============================================================
 -- MÓDULO DE REVISIONES TÉCNICAS + CHK RECEPCIÓN (v2)
 -- ============================================================
-
--- Nuevas columnas en documentos (para documento único evolucionando)
-ALTER TABLE documentos ADD COLUMN etapa TEXT DEFAULT 'CHK';
-ALTER TABLE documentos ADD COLUMN version INTEGER DEFAULT 1;
-ALTER TABLE documentos ADD COLUMN estado_chk TEXT DEFAULT 'faltante';
-ALTER TABLE documentos ADD COLUMN estado_tecnico TEXT;
-ALTER TABLE documentos ADD COLUMN ubicacion_fisica TEXT;
-ALTER TABLE documentos ADD COLUMN plantilla_tipo_id INTEGER;
-ALTER TABLE documentos ADD COLUMN revision_actual_id INTEGER;
-ALTER TABLE documentos ADD COLUMN revision_count INTEGER DEFAULT 0;
 
 -- Tablas de configuración (plantillas de revisión)
 CREATE TABLE IF NOT EXISTS plantillas_tipo (
@@ -311,7 +319,7 @@ CREATE TABLE IF NOT EXISTS cruces_pendientes (
     verificado_at TIMESTAMP
 );
 
--- Índices
+-- Índices del módulo de revisiones
 CREATE INDEX IF NOT EXISTS idx_doc_proyecto_estado ON documentos(proyecto_id, estado_chk);
 CREATE INDEX IF NOT EXISTS idx_doc_etapa ON documentos(proyecto_id, etapa);
 CREATE INDEX IF NOT EXISTS idx_revisiones_documento ON revisiones(documento_id);
@@ -322,7 +330,48 @@ CREATE INDEX IF NOT EXISTS idx_observaciones_tipo ON observaciones(proyecto_id, 
 CREATE INDEX IF NOT EXISTS idx_observaciones_documento ON observaciones(documento_id);
 CREATE INDEX IF NOT EXISTS idx_cruces_proyecto ON cruces_pendientes(proyecto_id, estado);
 
--- Seed data: tipos de documento para revisiones
+-- ============================================================
+-- SEED DATA
+-- ============================================================
+
+INSERT OR IGNORE INTO config_modulos (codigo, nombre) VALUES
+('EST', 'Estructuras'),
+('MDS', 'Mecánica de Suelos'),
+('HAB', 'Habilitación'),
+('URB', 'Urbanización'),
+('ADM', 'Administrativo');
+
+INSERT OR IGNORE INTO config_tipos_documento (codigo, nombre) VALUES
+('MEM', 'Memoria de Cálculo'),
+('PLN', 'Planimetría'),
+('INF', 'Informes'),
+('ENS', 'Ensayos de Laboratorio'),
+('MHB', 'Memoria de Habilitación'),
+('LEG', 'Documentación Legal');
+
+INSERT OR IGNORE INTO catalogo_elementos (familia, codigo, nombre) VALUES
+('VIV', 'T01', 'Tipología 1'),
+('VIV', 'T02', 'Tipología 2'),
+('VIV', 'T03', 'Tipología 3'),
+('VIV', 'T04', 'Tipología 4'),
+('VIV', 'T05', 'Tipología 5'),
+('REC', 'SMU', 'Sede Social'),
+('REC', 'QUI', 'Quincho'),
+('REC', 'SAU', 'Sala de Usos Múltiples'),
+('TER', 'TOP', 'Topografía'),
+('TER', 'RAS', 'Rastreo'),
+('TER', 'REL-VIV', 'Rellenos Estructurales Vivienda'),
+('TER', 'REL-VIA', 'Rellenos Estructurales Vialidad'),
+('OBR', 'MUR', 'Muros de Contención'),
+('OBR', 'EST', 'Estanques'),
+('OBR', 'BOD', 'Bodega'),
+('OBR', 'SAL', 'Sistema Alcantarillado'),
+('OBR', 'PEA', 'Planta Elevadora Aguas Servidas'),
+('URB', 'VIA', 'Vías'),
+('URB', 'PAR', 'Parques / Áreas Verdes'),
+('URB', 'VER', 'Veredas / Aceras'),
+('PRO', 'GLB', 'Proyecto General');
+
 INSERT OR IGNORE INTO plantillas_tipo (codigo, nombre, descripcion, disciplina, orden_flujo, anticipar_para) VALUES
 ('INF_MDS', 'Informe Mecánica de Suelos', 'Informe geotécnico del proyecto', 'MDS', 1, 'glb'),
 ('MEM_HAB', 'Memoria de Habilitación', 'Memoria descriptiva de habilitación urbana', 'HAB', 2, 'glb'),

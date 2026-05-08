@@ -27,11 +27,11 @@ TZ_CHILE = ZoneInfo("America/Santiago")
 
 # Familias permitidas por módulo (protección contra combinaciones sin sentido)
 MATRIZ_COMPATIBILIDAD = {
-    "EST": {"VIV", "REC", "OBR", "GEN"},
-    "MDS": {"TER", "GEN"},
-    "HAB": {"TER", "OBR", "REC", "GEN"},
-    "URB": {"URB", "GEN"},
-    "ADM": {"GEN"},
+    "EST": {"VIV", "REC", "OBR", "PRO"},
+    "MDS": {"TER", "PRO"},
+    "HAB": {"TER", "OBR", "REC", "PRO"},
+    "URB": {"URB", "PRO"},
+    "ADM": {"PRO"},
 }
 
 # Orden jerárquico de estados de flujo (para UI y lógica)
@@ -388,103 +388,18 @@ def init_db():
     db.close()
 
 def migrate_db():
-    """Ejecuta migración incremental de esquema."""
+    """Ejecuta migración incremental de esquema (módulo de revisiones v2)."""
     import subprocess
     import sys
+    db = sqlite3.connect(str(DATABASE))
+    db.row_factory = sqlite3.Row
+    db.execute("PRAGMA foreign_keys = ON")
     script = BASE_DIR / "migrar_revisiones.py"
     result = subprocess.run([sys.executable, str(script)], capture_output=True, text=True)
     if result.returncode != 0:
         print("⚠️ Error en migración:", result.stderr)
     else:
         print("✅ Migración completada.")
-
-    # Crear tablas nuevas si no existen (para migración sin reset)
-    db.execute("""
-        CREATE TABLE IF NOT EXISTS tareas (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            asunto TEXT NOT NULL,
-            fecha_solicitud DATE NOT NULL,
-            fecha_limite DATE,
-            estado TEXT DEFAULT 'pendiente',
-            notas TEXT,
-            fecha_creacion TIMESTAMP DEFAULT (datetime('now','localtime')),
-            fecha_completada TIMESTAMP,
-            CHECK (estado IN ('pendiente', 'en_progreso', 'completada'))
-        )
-    """)
-    db.execute("""
-        CREATE TABLE IF NOT EXISTS jornada (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            fecha DATE NOT NULL UNIQUE,
-            entrada TIME,
-            salida TIME,
-            estado TEXT DEFAULT 'trabajado',
-            notas TEXT,
-            CHECK (estado IN ('trabajado', 'feriado', 'permiso'))
-        )
-    """)
-    db.execute("CREATE INDEX IF NOT EXISTS idx_tareas_estado ON tareas(estado)")
-    db.execute("CREATE INDEX IF NOT EXISTS idx_jornada_fecha ON jornada(fecha)")
-    db.execute("""
-        CREATE TABLE IF NOT EXISTS catalogo_elementos (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            familia TEXT NOT NULL,
-            codigo TEXT NOT NULL,
-            nombre TEXT NOT NULL,
-            activo INTEGER DEFAULT 1,
-            UNIQUE(familia, codigo)
-        )
-    """)
-    db.execute("CREATE INDEX IF NOT EXISTS idx_catalogo_familia ON catalogo_elementos(familia)")
-    # Insertar catálogo inicial si está vacío
-    count = db.execute("SELECT COUNT(*) FROM catalogo_elementos").fetchone()[0]
-    if count == 0:
-        db.executescript("""
-            INSERT INTO catalogo_elementos (familia, codigo, nombre) VALUES
-            ('REC', 'SMU', 'Sede Social'),
-            ('REC', 'QUI', 'Quincho'),
-            ('REC', 'SAU', 'Sala de Usos Múltiples'),
-            ('OBR', 'MUR', 'Muros de Contención'),
-            ('OBR', 'EST', 'Estanques'),
-            ('OBR', 'BOD', 'Bodega'),
-            ('OBR', 'SAL', 'Sistema Alcantarillado'),
-            ('URB', 'VIA', 'Vías'),
-            ('URB', 'PAR', 'Parques / Áreas Verdes'),
-            ('URB', 'VER', 'Veredas / Aceras'),
-            ('TER', 'TOP', 'Topografía'),
-            ('TER', 'RAS', 'Rastreo'),
-            ('GEN', 'PRO', 'Proyecto General');
-        """)
-
-    # ── Migración: tabla acta_items ──
-    db.execute("""
-        CREATE TABLE IF NOT EXISTS acta_items (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            modulo TEXT NOT NULL,
-            seccion TEXT NOT NULL,
-            codigo TEXT NOT NULL,
-            descripcion TEXT NOT NULL,
-            tipo_doc TEXT,
-            orden INTEGER DEFAULT 0
-        )
-    """)
-    db.execute("CREATE INDEX IF NOT EXISTS idx_acta_items_modulo ON acta_items(modulo)")
-    db.execute("CREATE INDEX IF NOT EXISTS idx_acta_items_tipo_doc ON acta_items(tipo_doc)")
-
-    count_acta = db.execute("SELECT COUNT(*) FROM acta_items").fetchone()[0]
-    if count_acta == 0:
-        migracion_path = BASE_DIR / "migracion_acta_items.sql"
-        if migracion_path.exists():
-            db.executescript(migracion_path.read_text(encoding="utf-8"))
-        else:
-            print("WARNING: migracion_acta_items.sql no encontrado. Los items de acta no se poblaron.")
-
-    # Agregar columna acta_items_json a revisiones_aplicadas si no existe
-    cols_ra = db.execute("PRAGMA table_info(revisiones_aplicadas)").fetchall()
-    col_names_ra = [c[1] for c in cols_ra]
-    if "acta_items_json" not in col_names_ra:
-        db.execute("ALTER TABLE revisiones_aplicadas ADD COLUMN acta_items_json TEXT")
-
     db.commit()
     db.close()
 
@@ -631,10 +546,10 @@ def crear_proyecto():
                     (pid, cod, f"Tipología {i}", "VIV", i)
                 )
 
-        # 2. Elemento GLB (Global) siempre presente
+        # 2. Elemento PRO (Proyecto General) siempre presente
         db.execute(
             "INSERT INTO elementos_proyecto (proyecto_id, codigo, nombre, familia, orden) VALUES (?,?,?,?,?)",
-            (pid, "GLB", "Elementos Globales", "GEN", 0)
+            (pid, "GLB", "Proyecto General", "PRO", 0)
         )
 
         # 3. Anticipar documentos esperados según elementos + plantillas
@@ -885,8 +800,8 @@ def crear_documento():
     ruta = request.form.get("ruta_fisica", "").strip()
 
     # Resolver elemento (familia + código)
-    familia = "GEN"
-    elemento = "PRO"
+    familia = "PRO"
+    elemento = "GLB"
     elem_id_int = None
     if elemento_id:
         try:
